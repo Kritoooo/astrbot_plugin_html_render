@@ -4,8 +4,8 @@ import re
 import sys
 import uuid
 import io
-from typing import Dict, List, Optional, Tuple
-
+from typing import Dict, List, Optional, Tuple    
+import mistune
 from astrbot.api import logger
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
@@ -24,22 +24,20 @@ except ImportError:
 # Markdown 渲染支持
 _markdown_renderer = None
 try:
-    import mistune
     
     # 兼容 mistune 不同版本
     if hasattr(mistune, 'create_markdown'):
-        # mistune 2.x / 3.x：escape=False 保留内联 HTML（语义标签如 <q>、<think> 等）
+        # mistune 2.x / 3.x：escape=False 保留内联 HTML（语义标签如 <q>、<inner> 等）
         try:
             _markdown_renderer = mistune.create_markdown(escape=False, plugins=['table', 'strikethrough'])
         except (TypeError, KeyError):
+            # 某些版本插件名不同或不支持
             try:
                 _markdown_renderer = mistune.create_markdown(escape=False)
             except TypeError:
                 # 极端回退：某些版本不支持 escape 参数
                 _markdown_renderer = mistune.create_markdown()
                 logger.warning("HTML渲染插件: 当前 mistune 版本可能不保留内联 HTML")
-            # 某些版本插件名不同或不支持
-            _markdown_renderer = mistune.create_markdown()
     elif hasattr(mistune, 'Markdown'):
         # mistune 0.x
         _markdown_renderer = mistune.Markdown()
@@ -153,9 +151,9 @@ async def html_to_image_playwright(
 
 @register(
     "astrbot_plugin_html_render",
-    "YourName",
+    "lumingya",
     "将 AI 返回的 HTML/CSS 内容渲染成精美图片发送",
-    "1.0.0",
+    "1.0.1",
 )
 class HtmlRenderPlugin(Star):
     def __init__(self, context: Context, config: dict):
@@ -314,7 +312,7 @@ class HtmlRenderPlugin(Star):
 
 青年抬起头，露出温和的笑容。<q>没有，请坐。</q>
 
-<think>他的声音……好像在哪里听过。</think>
+<inner>他的声音……好像在哪里听过。</inner>
 
 林晓坐下后，<act>不经意地打量着对面的人</act>。窗外的余晖在他脸上镀上一层金色的光。
 
@@ -368,7 +366,7 @@ def hello():
 
 <q>第三个又变回粉色</q>
 
-<think>气泡会自动交替颜色</think>
+<inner>气泡会自动交替颜色</inner>
 </render>"""
         
         elif template_name == "dialogue":
@@ -1236,7 +1234,7 @@ def hello():
 
 ### 语义标签用法
 - <q>对话内容</q> → 对话台词，会显示为引号样式
-- <think>想法</think> → 内心活动，会显示为灰色斜体
+- <inner>想法</inner> → 内心活动，会显示为灰色斜体
 - <act>动作</act> → 动作描写，会显示为特殊颜色
 - <scene>场景</scene> → 场景环境描写，会显示为独立段落块
 - <aside>旁白</aside> → 叙述性旁白，会居中显示
@@ -1256,7 +1254,7 @@ def hello():
 
 <q>你怎么会在这里？</q>
 
-<think>不对，这个时间他不应该出现才对……</think>
+<inner>不对，这个时间他不应该出现才对……</inner>
 
 他没有回答，只是静静地看着她。
 
@@ -1273,14 +1271,14 @@ def hello():
     @filter.on_llm_response(priority=40)
     async def on_llm_response(self, event: AstrMessageEvent, resp):
         """
-        无条件把模型原文存入 event.extra，
+        将模型原文存入 event.extra，
         供 decorating_result 阶段渲染与手动写历史使用。
         """
         if resp and resp.completion_text:
             event.set_extra("html_render_original_text", resp.completion_text)
             logger.debug(f"[HTML渲染] 已保存原文到 extra（长度: {len(resp.completion_text)}）")
 
-    @filter.on_decorating_result(priority=40)   
+    @filter.on_decorating_result(priority=40)
     async def on_decorating_result(self, event: AstrMessageEvent):
         """
         处理 LLM 返回结果：渲染图片 + 保存历史记录
@@ -1289,10 +1287,8 @@ def hello():
         if not result or not result.chain:
             return
 
-        # 获取原始文本（在 on_llm_response 中保存的）
         original_text = event.get_extra("html_render_original_text")
         if not original_text:
-            # 没有标记需要处理，直接返回
             return
         
         logger.debug(f"[HTML渲染] 开始处理，原始文本长度: {len(original_text)}")

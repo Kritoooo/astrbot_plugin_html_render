@@ -20,6 +20,7 @@
             width: 100%;
             max-width: 700px;
             padding: 60px 50px;
+            overflow-x: hidden;
             box-shadow: 
                 0 2px 5px rgba(0,0,0,0.1),
                 0 10px 40px rgba(0,0,0,0.4);
@@ -93,22 +94,44 @@
         q {
             color: #8B4513;
             font-style: normal;
+            background: rgba(139, 69, 19, 0.06);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 500;
         }
-        q::before { content: """; color: #c9b896; }
-        q::after { content: """; color: #c9b896; }
+        q::before { 
+            content: """; 
+            color: #c9b896; 
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        q::after { 
+            content: """; 
+            color: #c9b896; 
+            font-weight: bold;
+            font-size: 1.1em;
+        }
         
         /* 内心想法 */
-        think {
+        inner {
             color: #808080;
             font-style: italic;
+            background: rgba(128, 128, 128, 0.08);
+            padding: 2px 6px;
+            border-radius: 3px;
         }
-        think::before { content: "（"; opacity: 0.5; }
-        think::after { content: "）"; opacity: 0.5; }
+        inner::before { content: "（"; opacity: 0.5; }
+        inner::after { content: "）"; opacity: 0.5; }
         
         /* 动作描写 */
         act {
             color: #696969;
             font-style: italic;
+            font-weight: 500;
+            text-decoration: underline;
+            text-decoration-style: dotted;
+            text-decoration-color: rgba(105, 105, 105, 0.3);
+            text-underline-offset: 3px;
         }
         
         /* 场景描写 */
@@ -120,6 +143,7 @@
             border-left: 3px solid #c9b896;
             margin: 1em 0;
             text-indent: 0;
+            font-style: italic;
         }
         
         /* 旁白 */
@@ -135,6 +159,70 @@
         aside::before { content: "※ "; }
         aside::after { content: " ※"; }
 
+        /* ===== 修复超出边界问题 ===== */
+        
+        .content * {
+            max-width: 100%;
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+        
+        .content details {
+            margin: 1em 0;
+            padding: 0;
+            border: 1px solid #d3c6a6;
+            border-radius: 6px;
+            background: rgba(201, 184, 150, 0.05);
+        }
+        
+        .content summary {
+            padding: 10px 16px;
+            cursor: pointer;
+            font-weight: 600;
+            background: rgba(201, 184, 150, 0.1);
+            border-radius: 6px 6px 0 0;
+            user-select: none;
+            text-indent: 0;
+            word-break: break-word;
+        }
+        
+        .content summary:hover {
+            background: rgba(201, 184, 150, 0.15);
+        }
+        
+        .content details[open] summary {
+            border-bottom: 1px solid #d3c6a6;
+            margin-bottom: 10px;
+        }
+        
+        .content details > *:not(summary) {
+            padding: 0 16px 10px 16px;
+            text-indent: 0;
+        }
+        
+        .content details p,
+        .content details div,
+        .content details li {
+            word-break: break-all;
+            white-space: normal;
+            overflow-wrap: anywhere;
+        }
+        /* —— 保留原始换行 + 取消两端对齐 —— */
+        .content details,
+        .content details * {
+            white-space: pre-wrap; /* \n ⇒ 换行 */
+        }
+
+            .content details p {
+                text-align: left; /* 关闭两端对齐，防止拉伸 */
+            }        
+        .content pre,
+        .content code {
+            word-break: normal;
+            overflow-x: auto;
+            white-space: pre;
+        }
     </style>
 </head>
 <body>

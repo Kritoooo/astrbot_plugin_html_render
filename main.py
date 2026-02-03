@@ -747,8 +747,8 @@ class HtmlRenderPlugin(Star):
             return text
         
         try:
-            # 使用 mistune 渲染 Markdown
-            html = mistune.html(text)
+            # 使用 mistune 渲染 Markdown，escape=False 以保留内联 HTML
+            html = mistune.html(text, escape=False)
             return html
         except Exception as e:
             logger.error(f"Markdown 渲染失败: {e}")
@@ -1215,6 +1215,7 @@ class HtmlRenderPlugin(Star):
         
         # 1. 优先处理显式 <render> 标签
         render_matches = self._detect_render_tag(text)
+        has_render_tag = bool(render_matches)    # ← 新增：标记本段是否含 <render>
         
         # ===== 自动合并模式 =====
         if render_matches and self.config.get("auto_merge_renders", False):
@@ -1273,8 +1274,17 @@ class HtmlRenderPlugin(Star):
         
         elif self.config.get("enable_auto_detect", True) and self._detect_html_tags(text):
             # 2. 自动检测 HTML 标签
-            logger.info("[HTML渲染] 检测到 HTML 标签，触发自动渲染")
-            image_component = await self._render_content(text, None, user_id, False)
+            if has_render_tag:
+                # 已出现 <render>，剩余文本保持纯文本，避免再次整体渲染
+                logger.debug("[HTML渲染] 已出现 <render> 标签，跳过自动 HTML 渲染")
+                components.append(Plain(text))
+            else:
+                logger.info("[HTML渲染] 检测到 HTML 标签，触发自动渲染")
+                image_component = await self._render_content(text, None, user_id, False)
+                if image_component:
+                    components.append(image_component)
+                else:
+                    components.append(Plain(text))
             if image_component:
                 components.append(image_component)
             else:
@@ -1316,7 +1326,8 @@ class HtmlRenderPlugin(Star):
             output_path = os.path.join(self.IMAGE_CACHE_DIR, filename)
             
             width = self.config.get("render_width", 600)
-            scale = self.config.get("render_scale", 2)
+            # GIF 模式降低 scale 以减小文件
+            scale = 1 if is_gif else self.config.get("render_scale", 2)
             
             success = await html_to_image_playwright(
                 html_content=full_html,

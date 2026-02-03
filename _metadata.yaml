@@ -1,0 +1,5 @@
+name: astrbot_plugin_html_render
+description: 将 AI 返回的 HTML 内容渲染成精美图片
+author: luming
+version: 1.0.0
+repo: ""

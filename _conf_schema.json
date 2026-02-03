@@ -1,0 +1,104 @@
+{
+    "enable_auto_detect": {
+        "type": "bool",
+        "description": "启用 HTML 自动检测",
+        "default": true,
+        "hint": "当检测到 HTML 标签时自动渲染成图片"
+    },
+    "inject_prompt": {
+        "type": "bool",
+        "description": "注入使用说明到 AI",
+        "default": true,
+        "hint": "是否在 AI 请求时注入渲染功能的使用说明"
+    },
+    "default_template": {
+        "type": "string",
+        "description": "默认模板",
+        "default": "card",
+        "hint": "使用 <render> 标签但未指定模板时的默认模板"
+    },
+    "render_width": {
+        "type": "int",
+        "description": "渲染宽度（像素）",
+        "default": 600,
+        "hint": "图片的宽度，建议 400-800"
+    },
+    "render_scale": {
+        "type": "int",
+        "description": "渲染缩放倍数",
+        "default": 2,
+        "hint": "缩放倍数越大图片越清晰，建议 2-3"
+    },
+    "auto_dialogue_detection": {
+        "type": "bool",
+        "description": "自动检测对话内容",
+        "default": true,
+        "hint": "当内容包含多个引号对话时，自动使用对话模板"
+    },
+    "dialogue_quote_threshold": {
+        "type": "int",
+        "description": "对话检测阈值",
+        "default": 1,
+        "hint": "内容中包含多少对引号时判定为对话内容"
+    },
+    "dialogue_quote_pattern": {
+    "type": "string",
+    "description": "对话引号匹配模式",
+    "default": "[\"''「」『』“”‘’]",
+    "hint": "包含中英文单双引号及直角引号的正则表达式"
+},
+    "auto_merge_renders": {
+        "type": "bool",
+        "description": "自动合并整段内容",
+        "default": true,
+        "hint": "当检测到 <render> 标签时，自动将整段内容合并渲染成一张完整图片"
+    },
+    "merged_template": {
+        "type": "string",
+        "description": "合并时使用的模板",
+        "default": "novel",
+        "hint": "自动合并时使用的默认模板"
+    },
+    "enable_markdown": {
+        "type": "bool",
+        "description": "启用 Markdown 渲染",
+        "default": true,
+        "hint": "自动将 Markdown 格式转换为 HTML 样式"
+    },
+    "auto_render_all": {
+        "type": "bool",
+        "description": "自动渲染所有 LLM 回复",
+        "default": true,
+        "hint": "即使 AI 没有使用 <render> 标签，也自动将回复渲染成图片。包含对话自动用对话模板，纯文本用小说模板"
+    },
+    "auto_render_template": {
+        "type": "string",
+        "description": "自动渲染时的默认模板",
+        "default": "novel",
+        "hint": "当没有检测到对话时使用的模板：novel（小说页面）、card（卡片）"
+    },
+    "auto_render_min_length": {
+        "type": "int",
+        "description": "自动渲染最小文本长度",
+        "default": 20,
+        "hint": "文本长度小于此值时不自动渲染，避免渲染过短的回复"
+    },
+    "preserve_text_for_context": {
+        "type": "bool",
+        "description": "保留文本用于上下文",
+        "default": true,
+        "hint": "渲染图片时同时保留文本摘要，确保对话历史和 AI 记忆功能正常工作。关闭后只发送图片，AI 可能无法记住之前的对话内容"
+    },
+    "gif_duration": {
+        "type": "float",
+        "description": "GIF 动画录制时长（秒）",
+        "default": 3.0,
+        "hint": "使用 <render gif> 时录制动画的时长，建议 2-5 秒"
+    },
+    "gif_fps": {
+        "type": "int",
+        "description": "GIF 帧率",
+        "default": 15,
+        "hint": "每秒帧数，越高越流畅但文件越大。建议 10-20，推荐 15"
+    }
+}

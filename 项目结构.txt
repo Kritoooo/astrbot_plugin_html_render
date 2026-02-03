@@ -1,0 +1,14 @@
+📁 astrbot_plugin_html_render/  [总计: 75.1 KB]  # 项目根目录
+├── 📁 templates  [19.5 KB]
+│   ├── 📄 card.html  [3.5 KB]
+│   ├── 📄 dialogue.html  [2.7 KB]
+│   ├── 📄 novel.html  [3.4 KB]
+│   └── 📄 qq.html  [9.8 KB]
+├── 📄 _conf_schema.json  [3.8 KB]
+├── 📄 _metadata.yaml  [138 B]
+├── 📄 main.py  [51.6 KB]    # ▶️ 程序主入口：启动 FastAPI 服务器
+└── 📄 requirements.txt  [67 B]       # 📦 Python 依赖列表
+
+============================================================
+📁 = 目录  |  📄 = 文件  |  # = 注释说明
+============================================================

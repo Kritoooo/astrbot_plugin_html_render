@@ -6,9 +6,7 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
         body {
-            /* 字体：优先使用衬线体，更有文学感 */
             font-family: "Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", "SimSun", serif;
-            /* 背景：深灰背景，模拟阅读桌面的沉浸感，反衬纸张 */
             background: #4a4a4a;
             padding: 40px;
             display: flex;
@@ -17,25 +15,18 @@
         }
 
         .page {
-            /* 纸张颜色：护眼米黄 */
             background: #fdf6e3;
-            /* 纸张纹理渐变 */
             background-image: linear-gradient(to right, rgba(0,0,0,0.02) 0%, rgba(0,0,0,0) 5%, rgba(0,0,0,0) 95%, rgba(0,0,0,0.02) 100%);
-            
             width: 100%;
             max-width: 700px;
-            padding: 60px 50px; /* 增加留白 */
-            
-            /* 拟真阴影：模拟纸张的厚度和弯曲 */
+            padding: 60px 50px;
             box-shadow: 
                 0 2px 5px rgba(0,0,0,0.1),
                 0 10px 40px rgba(0,0,0,0.4);
-            
             position: relative;
             min-width: 350px;
         }
 
-        /* 左侧装订线/书脊效果优化 */
         .page::before {
             content: "";
             position: absolute;
@@ -43,28 +34,27 @@
             top: 20px;
             bottom: 20px;
             width: 1px;
-            border-left: 1px dashed #d3c6a6; /* 虚线缝合感 */
+            border-left: 1px dashed #d3c6a6;
         }
 
         .content {
-            font-size: 18px; /* 字号稍大，适合阅读 */
-            line-height: 2.0; /* 宽松的行高 */
-            color: #2b2b2b; /* 深灰字，比纯黑更护眼 */
-            text-align: justify; /* 两端对齐 */
+            font-size: 18px;
+            line-height: 2.0;
+            color: #2b2b2b;
+            text-align: justify;
         }
 
-        /* --- 小说专用排版规则 --- */
-
-        /* 正文段落：首行缩进 */
+        /* 段落 */
         .content p {
             margin-bottom: 0.5em;
             text-indent: 2em;
         }
+        .content p:last-child { margin-bottom: 0; }
         
-        /* 标题：不缩进，加粗，深色 */
+        /* 标题 */
         .content h1, .content h2, .content h3 {
             text-indent: 0;
-            text-align: center; /* 标题居中更有书卷气 */
+            text-align: center;
             font-weight: bold;
             color: #1a1a1a;
             margin-top: 1.5em;
@@ -72,7 +62,7 @@
         }
         .content h1 { font-size: 24px; margin-top: 0; }
         
-        /* 引用/心理活动：不缩进，斜体，颜色稍浅 */
+        /* 引用块 */
         .content blockquote {
             text-indent: 0;
             margin: 1.5em 2em;
@@ -82,23 +72,68 @@
             font-style: italic;
         }
 
-        /* 列表：不缩进 */
+        /* 列表 */
         .content ul, .content ol {
             text-indent: 0;
             margin-left: 2em;
             margin-bottom: 1em;
         }
 
-        /* 分割线：花纹效果 */
+        /* 分割线 */
         .content hr {
             border: 0;
             height: 1px;
-            background-image: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0));
+            background-image: linear-gradient(to right, rgba(0,0,0,0), rgba(0,0,0,0.2), rgba(0,0,0,0));
             margin: 3em 0;
         }
+
+        /* ===== 语义标签样式 ===== */
         
-        /* 避免底部留白过大 */
-        .content p:last-child { margin-bottom: 0; }
+        /* 对话 */
+        q {
+            color: #8B4513;
+            font-style: normal;
+        }
+        q::before { content: """; color: #c9b896; }
+        q::after { content: """; color: #c9b896; }
+        
+        /* 内心想法 */
+        think {
+            color: #808080;
+            font-style: italic;
+        }
+        think::before { content: "（"; opacity: 0.5; }
+        think::after { content: "）"; opacity: 0.5; }
+        
+        /* 动作描写 */
+        act {
+            color: #696969;
+            font-style: italic;
+        }
+        
+        /* 场景描写 */
+        scene {
+            display: block;
+            color: #5a6a5a;
+            background: linear-gradient(to right, rgba(201,184,150,0.2), transparent);
+            padding: 10px 16px;
+            border-left: 3px solid #c9b896;
+            margin: 1em 0;
+            text-indent: 0;
+        }
+        
+        /* 旁白 */
+        aside {
+            display: block;
+            color: #888;
+            font-size: 0.9em;
+            text-align: center;
+            margin: 1.5em 0;
+            font-style: italic;
+            text-indent: 0;
+        }
+        aside::before { content: "※ "; }
+        aside::after { content: " ※"; }
 
     </style>
 </head>

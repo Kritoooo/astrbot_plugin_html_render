@@ -22,10 +22,33 @@ except ImportError:
     GIF_AVAILABLE = False
     logger.warning("HTML渲染插件: Pillow 未安装，GIF 动画功能将不可用。可通过 pip install Pillow 安装。")
 # Markdown 渲染支持
+_markdown_renderer = None
 try:
     import mistune
     
+    # 兼容 mistune 不同版本
+    if hasattr(mistune, 'create_markdown'):
+        # mistune 2.x / 3.x：escape=False 保留内联 HTML（语义标签如 <q>、<think> 等）
+        try:
+            _markdown_renderer = mistune.create_markdown(escape=False, plugins=['table', 'strikethrough'])
+        except (TypeError, KeyError):
+            try:
+                _markdown_renderer = mistune.create_markdown(escape=False)
+            except TypeError:
+                # 极端回退：某些版本不支持 escape 参数
+                _markdown_renderer = mistune.create_markdown()
+                logger.warning("HTML渲染插件: 当前 mistune 版本可能不保留内联 HTML")
+            # 某些版本插件名不同或不支持
+            _markdown_renderer = mistune.create_markdown()
+    elif hasattr(mistune, 'Markdown'):
+        # mistune 0.x
+        _markdown_renderer = mistune.Markdown()
+    else:
+        # 最终回退
+        _markdown_renderer = mistune.html
+    
     MARKDOWN_AVAILABLE = True
+    logger.info(f"HTML渲染插件: mistune {getattr(mistune, '__version__', 'unknown')} 初始化成功")
 except ImportError:
     MARKDOWN_AVAILABLE = False
     logger.warning("HTML渲染插件: mistune 未安装，Markdown 渲染功能将不可用。可通过 pip install mistune 安装。")
@@ -279,7 +302,123 @@ class HtmlRenderPlugin(Star):
             return str(event.unified_msg_origin)
         except Exception:
             return "default_user"
+    def _get_default_test_content(self, template_name: str) -> str:
+        """获取默认测试内容（针对不同模板）"""
+        
+        # 基础测试内容（适用于所有模板）
+        base_content = """<scene>夕阳西下，咖啡馆里弥漫着淡淡的咖啡香气。</scene>
 
+林晓推开门，铃铛发出清脆的"叮铃"声。<act>她环顾四周</act>，目光落在靠窗的位置上。
+
+<q>不好意思，这里有人吗？</q>
+
+青年抬起头，露出温和的笑容。<q>没有，请坐。</q>
+
+<think>他的声音……好像在哪里听过。</think>
+
+林晓坐下后，<act>不经意地打量着对面的人</act>。窗外的余晖在他脸上镀上一层金色的光。
+
+<q>你也喜欢这家店的咖啡吗？</q>青年主动开口。
+
+<q>嗯，这里很安静，适合看书。</q>
+
+<aside>两个陌生人，一段偶然的相遇，谁也不知道，这将改变彼此的人生轨迹。</aside>
+
+---
+
+**测试各种文本格式：**
+
+这是**加粗文字**，这是*斜体文字*。
+
+> 这是一段引用文本，可以用来显示重要信息或者名言警句。
+
+### 列表测试
+
+**购物清单：**
+- 咖啡豆
+- 牛奶
+- 糖
+
+**步骤：**
+1. 打开咖啡机
+2. 放入咖啡豆
+3. 等待萃取
+
+---
+
+### 代码测试
+
+这是行内代码：`print("Hello World")`
+
+```python
+def hello():
+    print("这是代码块测试")
+```"""
+
+        # 针对不同模板的特殊内容
+        if template_name == "bubble":
+            return f"""<render template="bubble">
+{base_content}
+
+<h2>气泡模板特色</h2>
+
+<q>这是第一个粉色气泡</q>
+
+<q>这是第二个蓝色气泡</q>
+
+<q>第三个又变回粉色</q>
+
+<think>气泡会自动交替颜色</think>
+</render>"""
+        
+        elif template_name == "dialogue":
+            return f"""<render template="dialogue">
+"你好啊，今天天气真好。"
+
+（她微笑着说）
+
+"是啊，要不要一起去公园走走？"
+
+（他有些紧张地挠了挠头）
+
+"好啊！"
+
+旁白：就这样，两人开始了一段美好的回忆。
+</render>"""
+        
+        elif template_name == "novel":
+            return f"""<render template="novel">
+{base_content}
+
+<h1>第一章 相遇</h1>
+
+这是小说模板的特色段落，文字会首行缩进，营造出书卷气息。
+
+<scene>场景描写会显示为独立的段落块。</scene>
+
+普通文字保持传统小说排版风格。
+</render>"""
+        
+        elif template_name == "card":
+            return f"""<render template="card">
+{base_content}
+
+<h2>卡片模板特色</h2>
+
+卡片模板适合展示各种 **Markdown** 格式。
+
+### 支持的功能：
+- Markdown 标题
+- 列表和引用
+- 代码高亮
+- 语义标签美化
+</render>"""
+        
+        else:
+            # 未知模板，返回通用测试内容
+            return f"""<render template="{template_name}">
+{base_content}
+</render>"""
     def _get_default_card_template(self) -> str:
         """默认卡片模板 HTML"""
         return """<!DOCTYPE html>
@@ -728,7 +867,75 @@ class HtmlRenderPlugin(Star):
             result = result.replace(f"__ASTR_HTML_RENDER_PROTECTED_{i}__", block)
 
         return result
+    def _convert_markdown_tables(self, text: str) -> str:
+        """
+        将 Markdown 表格转换为 HTML 表格（用于混合内容场景）
+        """
+        lines = text.split('\n')
+        result = []
+        i = 0
+        
+        while i < len(lines):
+            line = lines[i]
+            
+            # 检测表格：当前行有 |，下一行是分隔行 (| --- | --- |)
+            if '|' in line and i + 1 < len(lines):
+                next_line = lines[i + 1]
+                if re.match(r'^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$', next_line):
+                    # 收集表格行
+                    table_lines = [line, next_line]
+                    i += 2
+                    while i < len(lines) and '|' in lines[i]:
+                        # 排除分隔行
+                        if not re.match(r'^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$', lines[i]):
+                            table_lines.append(lines[i])
+                        i += 1
+                    
+                    # 转换为 HTML
+                    result.append(self._parse_markdown_table(table_lines))
+                    continue
+            
+            result.append(line)
+            i += 1
+        
+        return '\n'.join(result)
 
+    def _parse_markdown_table(self, lines: List[str]) -> str:
+        """解析 Markdown 表格并生成 HTML"""
+        if len(lines) < 2:
+            return '\n'.join(lines)
+        
+        def parse_row(line: str) -> List[str]:
+            line = line.strip()
+            if line.startswith('|'):
+                line = line[1:]
+            if line.endswith('|'):
+                line = line[:-1]
+            return [cell.strip() for cell in line.split('|')]
+        
+        # 表头
+        header_cells = parse_row(lines[0])
+        
+        # 数据行（跳过分隔行 lines[1]）
+        body_rows = [parse_row(line) for line in lines[2:]]
+        
+        # 生成 HTML（样式适配小说/卡片模板）
+        html = ['<table style="border-collapse:collapse;width:100%;margin:1em 0;font-size:14px;">']
+        
+        html.append('<thead><tr>')
+        for cell in header_cells:
+            html.append(f'<th style="border:1px solid #d4c4a8;padding:8px 12px;background:#f5f0e6;text-align:left;font-weight:600;">{cell}</th>')
+        html.append('</tr></thead>')
+        
+        html.append('<tbody>')
+        for row in body_rows:
+            html.append('<tr>')
+            for cell in row:
+                html.append(f'<td style="border:1px solid #d4c4a8;padding:8px 12px;background:#fffef9;">{cell}</td>')
+            html.append('</tr>')
+        html.append('</tbody></table>')
+        
+        return ''.join(html)
     def _markdown_to_html(self, text: str) -> str:
         """
         将 Markdown 转换为 HTML
@@ -736,23 +943,19 @@ class HtmlRenderPlugin(Star):
         :param text: 可能包含 Markdown 的文本
         :return: HTML 字符串
         """
-        if not MARKDOWN_AVAILABLE:
+        if not MARKDOWN_AVAILABLE or _markdown_renderer is None:
             # mistune 不可用，只做基础换行处理
             return self._preserve_newlines(text)
         
-        # 检查是否已经是 HTML（包含块级标签）
-        if re.search(r'<(p|div|br|table|ul|ol|li|h[1-6])\b', text, re.IGNORECASE):
-            # 清理可能残留的 Markdown 代码块标记
-            text = re.sub(r'```[\w]*\n?', '', text)
-            text = re.sub(r'\n?```', '', text)
-            return text
-        
         try:
-            # 使用 mistune 渲染 Markdown，escape=False 以保留内联 HTML
-            html = mistune.html(text, escape=False)
+            # 使用预初始化的渲染器（mistune 默认保留内联 HTML，不会破坏语义标签）
+            html = _markdown_renderer(text)
+            logger.debug(f"[Markdown] 渲染成功，输入长度: {len(text)}, 输出长度: {len(html)}")
             return html
         except Exception as e:
             logger.error(f"Markdown 渲染失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return self._preserve_newlines(text)
 
     def _select_template(self, content: str, specified_template: Optional[str] = None, user_id: Optional[str] = None) -> str:
@@ -798,22 +1001,14 @@ class HtmlRenderPlugin(Star):
         if template_name == "dialogue":
             content = self._format_dialogue(content)
         else:
-            # 检查是否已包含 HTML 块级标签
-            has_html_blocks = re.search(r'<(div|span|p|table|ul|ol|li|h[1-6])\b', content, re.IGNORECASE)
-            
-            if has_html_blocks:
-                # 已有 HTML 结构：只清理 markdown 代码块标记，不处理换行
-                content = re.sub(r'```[\w]*\n?', '', content)
-                content = re.sub(r'\n?```', '', content)
-                # 依赖 CSS white-space: pre-wrap 保留必要换行
+            # Markdown 渲染
+            # 注意：mistune 默认保留内联 HTML，不会破坏语义标签或已有的 HTML 结构
+            if self.config.get("enable_markdown", True):
+                content = self._markdown_to_html(content)
             else:
-                # 纯文本/Markdown：正常处理换行
-                if self.config.get("enable_markdown", True):
-                    content = self._markdown_to_html(content)
-                else:
-                    content = self._preserve_newlines(content)
+                content = self._preserve_newlines(content)
         
-        # 统一换行：保留空行（A：\n\n -> <br><br>），并避免把缩进换行当成正文
+        # 统一换行处理
         content = self._nl2br(content)
 
         html = template.replace("{{content}}", content)
@@ -868,7 +1063,7 @@ class HtmlRenderPlugin(Star):
     async def cmd_test_render(self, event: AstrMessageEvent):
         """
         测试渲染命令
-        用法: /测试 <文本内容>
+        用法: /测试 [文本内容]
         """
         # 获取消息内容并解析参数
         full_message = event.message_str.strip()
@@ -880,19 +1075,17 @@ class HtmlRenderPlugin(Star):
         parts = full_message.split(None, 1)
         text = parts[1].strip() if len(parts) > 1 else ""
         
-        if not text:
-            yield event.plain_result(
-                "📝 测试渲染命令\n"
-                "━━━━━━━━━━━━━━━━━━\n"
-                "用法: /测试 <文本内容>\n"
-                "示例: /测试 你好世界\n\n"
-                "此命令会使用当前默认模板渲染文本内容\n"
-                "使用 /查看 查看可用模板\n"
-                "使用 /切换 切换默认模板"
-            )
-            return
-        
         user_id = self._get_user_id(event)
+        
+        # 如果没有提供文本，使用默认测试内容
+        if not text:
+            template = self.user_default_template.get(
+                user_id, 
+                self.config.get("default_template", "card")
+            )
+            text = self._get_default_test_content(template)
+            logger.info(f"[HTML渲染] 使用默认测试内容，模板: {template}")
+        
         
         # 检查是否包含 <render> 标签
         if '<render' in text:
@@ -1035,73 +1228,45 @@ class HtmlRenderPlugin(Star):
         if not self.config.get("inject_prompt", True):
             return
 
-        template_list = ", ".join(self.templates.keys())
+        template_list = ", ".join(self._get_available_templates())
         
         instruction = f"""
-## HTML 渲染功能支持
-你可以输出 HTML 代码或使用特定标签将内容渲染为图片/GIF动图发送。
+## HTML 渲染功能
+你的回复会被渲染成精美图片。请使用语义标签标记不同类型的内容。
 
-### 用法
-1. **指定模板（静态图）**: 
-<render template="card|dialogue|novel">
-内容
+### 语义标签用法
+- <q>对话内容</q> → 对话台词，会显示为引号样式
+- <think>想法</think> → 内心活动，会显示为灰色斜体
+- <act>动作</act> → 动作描写，会显示为特殊颜色
+- <scene>场景</scene> → 场景环境描写，会显示为独立段落块
+- <aside>旁白</aside> → 叙述性旁白，会居中显示
+
+### 格式要求
+1. 用 <render template="模板名"> 包裹正文内容
+2. 可用模板: {template_list}
+3. 在标签外写普通叙述文字
+
+### 完整示例
+<render template="novel">
+<scene>月光如水，洒落在寂静的庭院中。</scene>
+
+林晓站在门口，望着眼前的身影，心跳不由得加速起来。
+
+<act>她缓缓转过身来</act>，月光勾勒出她清冷的轮廓。
+
+<q>你怎么会在这里？</q>
+
+<think>不对，这个时间他不应该出现才对……</think>
+
+他没有回答，只是静静地看着她。
+
+<aside>命运的齿轮，从这一刻开始转动。</aside>
 </render>
 
-2. **GIF 动画模式**:
-<render gif>
-内容（需包含 CSS animation 或 @keyframes）
-</render>
-
-3. **指定模板 + GIF**:
-<render template="card" gif>
-内容（需包含动画）
-</render>
-
-### 可用模板
-- 可用模板名: {template_list}
-- **dialogue**: 自动将引号内的对话渲染为左右气泡
-- **card**: 通用卡片样式
-- **novel**: 小说页面风格
-
-### GIF 注意事项
-- 仅当内容包含 CSS 动画时使用 `gif` 属性
-- 动画时长：{self.gif_duration}秒，帧率：{self.gif_fps}fps
-- 示例：弹幕、淡入淡出、移动效果等
-
-### 示例
-**静态对话：**
-<render template="dialogue">
-"你好，最近怎么样？"
-"还不错，在写代码。"
-</render>
-
-**动画弹幕：**
-<render gif>
-<div class="danmu-area">
-  <div class="danmu-line" style="--row:0; --color:#ff6b6b; --delay:0s;">这是一条弹幕</div>
-  <div class="danmu-line" style="--row:1; --color:#4ecdc4; --delay:0.5s;">第二条弹幕</div>
-</div>
-<style>
-.danmu-area {{ position: relative; height: 100px; overflow: hidden; }}
-.danmu-line {{
-  position: absolute;
-  top: calc(var(--row) * 35px);
-  animation: fly 5s linear infinite;
-  animation-delay: var(--delay);
-  color: var(--color);
-}}
-@keyframes fly {{
-  0% {{ transform: translateX(100%); }}
-  100% {{ transform: translateX(-100%); }}
-}}
-</style>
-</render>
-
-### 请务必按以下格式回复
+### 回复格式
 <ctx>
-（请在此处原样输出本次回复的内容）
+你的完整回复内容
 </ctx>
-也就是用ctx的xml标签在首尾包裹正文。
 """
         req.system_prompt += f"\n\n{instruction}"
 
@@ -1286,10 +1451,6 @@ class HtmlRenderPlugin(Star):
                     components.append(image_component)
                 else:
                     components.append(Plain(text))
-            if image_component:
-                components.append(image_component)
-            else:
-                components.append(Plain(text))
         
         else:
             # 3. 检查是否启用了自动渲染所有内容

@@ -170,8 +170,6 @@ merged\_template: "novel"           # 合并渲染使用的模板
 
 | `/查看` | 查看可用模板列表 | `/查看` |
 
-| `/重载模板` | 从硬盘刷新模板 | `/重载模板` |
-
 
 
 \### AI 自动渲染
@@ -276,27 +274,15 @@ AI：
 
 
 
-!\[card预览](docs/card-preview.png)
-
-
-
 \### 2. Dialogue（对话）
 
 聊天气泡样式，自动将引号内容转为左右交替的气泡，引号外的内容作为叙事描述。
 
 
 
-!\[dialogue预览](docs/dialogue-preview.png)
-
-
-
 \### 3. Novel（小说）
 
 仿书页样式，适合长文本、故事、诗歌等文学内容。
-
-
-
-!\[novel预览](docs/novel-preview.png)
 
 
 
@@ -491,4 +477,5 @@ pip install mistune
 \- `render\_width`: 增加宽度（如 800）
 
 \- `render\_scale`: 增加缩放比例（如 3）
+
 

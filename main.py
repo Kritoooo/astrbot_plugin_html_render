@@ -103,7 +103,8 @@ async def html_to_image_playwright(
                     
                     record_time = time.time() - record_start
                     logger.info(f"[GIF] 录制完成：{len(frames)}帧，耗时{record_time:.1f}s")
-                    
+                        # 确保目录存在
+                    os.makedirs(os.path.dirname(output_image_path), exist_ok=True)                    
                     # 合成 GIF
                     if frames:
                         compose_start = time.time()

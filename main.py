@@ -84,12 +84,9 @@ async def html_to_image_playwright(
             await page.set_content(html_content, wait_until="networkidle")
             await asyncio.sleep(0.3)  # 等待渲染稳定
 
-            element = await page.query_selector('body')
-            target = element if element else page
-
             if not is_gif:
-                # 静态图片模式
-                await target.screenshot(path=output_image_path)
+                # 静态图片模式：full_page=True 捕获完整页面，避免内容被裁切
+                await page.screenshot(path=output_image_path, full_page=True)
             else:
                 # GIF 动画模式
                 if not GIF_AVAILABLE:
@@ -108,8 +105,8 @@ async def html_to_image_playwright(
                     for i in range(frame_count):
                         frame_start = time.time()
                         
-                        # 使用 JPEG 格式截图（更快），再转换
-                        frame_bytes = await target.screenshot(type='jpeg', quality=85)
+                        # 使用 JPEG 格式截图，full_page=True 防止裁切
+                        frame_bytes = await page.screenshot(full_page=True, type='jpeg', quality=85)
                         frame_img = PILImage.open(io.BytesIO(frame_bytes)).convert('RGB')
                         
                         # 转换为调色板模式（GIF 需要）
@@ -301,122 +298,138 @@ class HtmlRenderPlugin(Star):
         except Exception:
             return "default_user"
     def _get_default_test_content(self, template_name: str) -> str:
-        """获取默认测试内容（针对不同模板）"""
+        """获取完整测试内容（覆盖所有功能）"""
         
-        # 基础测试内容（适用于所有模板）
-        base_content = """<scene>夕阳西下，咖啡馆里弥漫着淡淡的咖啡香气。</scene>
+        test_content = '''<scene>夕阳的余晖洒落在古老的图书馆中，尘埃在光柱里缓缓飘舞。窗外的梧桐树叶沙沙作响，为这个寂静的午后增添了几分诗意。</scene>
 
-林晓推开门，铃铛发出清脆的"叮铃"声。<act>她环顾四周</act>，目光落在靠窗的位置上。
+## 第一章 相遇
 
-<q>不好意思，这里有人吗？</q>
+林晓推开那扇厚重的橡木门，铃铛发出清脆的"叮铃"声，打破了图书馆内的宁静。
 
-青年抬起头，露出温和的笑容。<q>没有，请坐。</q>
+<act>她环顾四周，目光在一排排书架间游移</act>，最终落在靠窗的那个位置——那里坐着一个正在专注阅读的青年。
 
-<inner>他的声音……好像在哪里听过。</inner>
+<q>不好意思，请问这里有人吗？</q>
 
-林晓坐下后，<act>不经意地打量着对面的人</act>。窗外的余晖在他脸上镀上一层金色的光。
+青年缓缓抬起头，露出一个温和的笑容。阳光恰好照在他的侧脸上，勾勒出柔和的轮廓。
 
-<q>你也喜欢这家店的咖啡吗？</q>青年主动开口。
+<q>没有，请坐。</q>
 
-<q>嗯，这里很安静，适合看书。</q>
+<inner>他的声音……好像在哪里听过。那种熟悉的感觉，像是很久以前的梦境。</inner>
 
-<aside>两个陌生人，一段偶然的相遇，谁也不知道，这将改变彼此的人生轨迹。</aside>
+林晓道了声谢，在对面坐下。她不经意间打量着眼前的人：干净的白衬衫，微微卷曲的黑发，还有那双仿佛能看透一切的眼眸。
+
+<aside>命运的齿轮，就在这个平凡的午后，悄然开始转动。</aside>
 
 ---
 
-**测试各种文本格式：**
+## Markdown 格式测试
 
-这是**加粗文字**，这是*斜体文字*。
+### 文本样式
 
-> 这是一段引用文本，可以用来显示重要信息或者名言警句。
+这是**加粗文字**，这是*斜体文字*，这是***粗斜体***。
 
-### 列表测试
+这是`行内代码`测试，用于显示代码片段如 `print("Hello")` 或变量名 `user_name`。
+
+### 引用块
+
+> 时光荏苒，岁月如梭。
+> 那些曾经以为会永远铭记的瞬间，终将在记忆的长河中渐渐模糊。
+> 唯有文字，能将那些珍贵的片刻永远定格。
+
+### 无序列表
 
 **购物清单：**
-- 咖啡豆
-- 牛奶
-- 糖
 
-**步骤：**
-1. 打开咖啡机
-2. 放入咖啡豆
-3. 等待萃取
+* 新鲜的咖啡豆（哥伦比亚产区）
+* 全脂牛奶一升
+* 方糖一盒
+* 肉桂粉少许
+
+### 有序列表
+
+**制作步骤：**
+
+1. 将咖啡豆研磨成细粉
+2. 用90度热水冲泡
+3. 加入适量牛奶
+4. 撒上肉桂粉装饰
+5. 轻轻搅拌均匀后享用
 
 ---
 
-### 代码测试
+## 长文本换行测试
 
-这是行内代码：`print("Hello World")`
+这是一段超长的连续文本用于测试自动换行功能：ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz这是中文和英文混合的超长文本测试TheQuickBrownFoxJumpsOverTheLazyDog敏捷的棕色狐狸跳过了懒惰的狗
 
-```python
-def hello():
-    print("这是代码块测试")
-```"""
+超长无空格字符串：一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥
 
-        # 针对不同模板的特殊内容
-        if template_name == "bubble":
-            return f"""<render template="bubble">
-{base_content}
+---
 
-<h2>气泡模板特色</h2>
+<details open>
+<summary>🗂️ 角色档案 - 折叠块测试</summary>
 
-<q>这是第一个粉色气泡</q>
+**基本信息**
+🪪 姓名：林晓（Lin Xiao） | 📅 年龄：22岁 | 🎓 身份：江南大学文学系大三学生
+📍 籍贯：江南水乡・苏州 | 🩸 血型：O型 | ⭐ 星座：双鱼座
 
-<q>这是第二个蓝色气泡</q>
+**性格特点**
+温柔细腻，善于观察周围的人和事，总能捕捉到别人忽略的细节。热爱文学，尤其钟情于古典诗词和民国时期的散文。性格有些内向，但对朋友真诚坦率，偶尔会陷入自己的思绪中无法自拔。
 
-<q>第三个又变回粉色</q>
+**外貌描述**
+一头乌黑的长发及腰，通常扎成简单利落的马尾。眼眸清澈明亮如秋水，嘴角常带着若有若无的微笑。身高165cm，喜欢穿素雅的棉麻连衣裙，手腕上总戴着一串外婆留下的珍珠手链。
 
-<inner>气泡会自动交替颜色</inner>
-</render>"""
+**背景故事**
+出生于一个书香门第，从小在外婆的熏陶下爱上了阅读。外婆去世后，她常常独自来到这家百年老图书馆，因为这里珍藏着外婆最喜欢的那套民国初版《红楼梦》古籍。
+
+</details>
+
+<details open>
+<summary>📊 数据表格测试</summary>
+
+| 属性 | 数值 | 等级 | 说明 |
+| --- | --- | --- | --- |
+| 智力 | 85 | A | 学业成绩优异，多次获得奖学金 |
+| 魅力 | 78 | B+ | 温婉气质，清新脱俗 |
+| 体力 | 45 | C | 不擅长运动，但喜欢散步 |
+| 幸运 | 62 | B | 普通水平，偶有小确幸 |
+| 文学 | 95 | S | 精通古典文学，写作能力出众 |
+
+</details>
+
+---
+
+## 更多语义标签
+
+<scene>夜幕降临，图书馆即将关门。橘黄色的灯光在书架间投下长长的影子，空气中弥漫着旧书纸张特有的香气。</scene>
+
+青年合上书本，站起身来。
+
+<act>他整理好桌上的书籍，将椅子轻轻推回原位</act>
+
+<q>时间不早了，你也该回去了。</q>
+
+林晓这才注意到窗外已是华灯初上。她有些恋恋不舍地合上手中的书。
+
+<inner>真奇怪，明明是第一次见面，却感觉和他相处得如此自然。像是……像是久别重逢的老友。</inner>
+
+<q>谢谢你今天的陪伴。我叫林晓，你呢？</q>
+
+青年微微一笑，月光恰好透过窗户照在他的脸上。
+
+<q>我叫顾言。很高兴认识你，林晓。</q>
+
+<aside>就这样，两个陌生人的故事，在这个飘着书香的夜晚，悄然拉开了序幕。</aside>
+
+---
+
+**测试完成** ✓
+
+以上内容包含：语义标签（scene/act/q/inner/aside）、Markdown格式（标题/列表/引用/加粗/斜体）、details折叠块、表格、长文本换行测试等全部功能。'''
         
-        elif template_name == "dialogue":
-            return f"""<render template="dialogue">
-"你好啊，今天天气真好。"
+        return f'''<render template="{template_name}">
+{test_content}
+</render>'''
 
-（她微笑着说）
-
-"是啊，要不要一起去公园走走？"
-
-（他有些紧张地挠了挠头）
-
-"好啊！"
-
-旁白：就这样，两人开始了一段美好的回忆。
-</render>"""
-        
-        elif template_name == "novel":
-            return f"""<render template="novel">
-{base_content}
-
-<h1>第一章 相遇</h1>
-
-这是小说模板的特色段落，文字会首行缩进，营造出书卷气息。
-
-<scene>场景描写会显示为独立的段落块。</scene>
-
-普通文字保持传统小说排版风格。
-</render>"""
-        
-        elif template_name == "card":
-            return f"""<render template="card">
-{base_content}
-
-<h2>卡片模板特色</h2>
-
-卡片模板适合展示各种 **Markdown** 格式。
-
-### 支持的功能：
-- Markdown 标题
-- 列表和引用
-- 代码高亮
-- 语义标签美化
-</render>"""
-        
-        else:
-            # 未知模板，返回通用测试内容
-            return f"""<render template="{template_name}">
-{base_content}
-</render>"""
     def _get_default_card_template(self) -> str:
         """默认卡片模板 HTML"""
         return """<!DOCTYPE html>

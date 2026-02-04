@@ -5,6 +5,12 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
+        html, body {
+            width: fit-content;
+            min-width: 100%;
+            max-width: 700px;
+        }
+        
         body {
             font-family: "Microsoft YaHei", "PingFang SC", -apple-system, sans-serif;
             background: linear-gradient(135deg, #e6f0fa 0%, #f0e6f5 100%);
@@ -29,6 +35,23 @@
             font-size: 16px;
             line-height: 1.8;
             color: #3a3a3a;
+            /* 关键：限制内容宽度，强制换行 */
+            max-width: 100%;
+            overflow: hidden;
+        }
+
+        /* ===== 全局防溢出（关键修复） ===== */
+        .content * {
+            max-width: 100% !important;
+            word-wrap: break-word !important;
+            word-break: break-all !important;
+            overflow-wrap: anywhere !important;
+            box-sizing: border-box !important;
+        }
+        
+        /* 对于行内元素，使用 break-word 而非 break-all（更自然） */
+        .content q, .content inner, .content act, .content code {
+            word-break: break-word !important;
         }
 
         /* 普通段落 */
@@ -38,33 +61,32 @@
         }
 
         /* ===== 语义标签样式 ===== */
-        
 
-/* 对话气泡：粉色和蓝色交替 */
-q {
-    display: inline-block;
-    padding: 10px 16px;
-    margin: 8px 0;
-    border-radius: 18px;
-    max-width: 85%;
-    position: relative;
-    font-style: normal;
-    quotes: none;
-    background: linear-gradient(135deg, #F8B8C6 0%, #FFD1DC 100%);
-    color: #5a3a4a;
-    box-shadow: 0 4px 12px rgba(248, 184, 198, 0.3);
-    border: 1.5px solid rgba(255, 255, 255, 0.6);
-}
+        /* 对话气泡：粉色和蓝色交替 */
+        q {
+            display: inline-block;
+            padding: 10px 16px;
+            margin: 8px 0;
+            border-radius: 18px;
+            max-width: 85%;
+            position: relative;
+            font-style: normal;
+            quotes: none;
+            background: linear-gradient(135deg, #F8B8C6 0%, #FFD1DC 100%);
+            color: #5a3a4a;
+            box-shadow: 0 4px 12px rgba(248, 184, 198, 0.3);
+            border: 1.5px solid rgba(255, 255, 255, 0.6);
+        }
 
-q::before, q::after { content: none; }
+        q::before, q::after { content: none; }
 
-/* 第二个气泡用蓝色（Markdown渲染后结构：<p><q></q></p>） */
-.content > p:nth-child(2n) > q,
-.content p:nth-child(2n) > q {
-    background: linear-gradient(135deg, #6BB9D6 0%, #A2D8E8 100%);
-    color: #2a4a5a;
-    box-shadow: 0 4px 12px rgba(107, 185, 214, 0.3);
-}
+        /* 第二个气泡用蓝色 */
+        .content > p:nth-child(2n) > q,
+        .content p:nth-child(2n) > q {
+            background: linear-gradient(135deg, #6BB9D6 0%, #A2D8E8 100%);
+            color: #2a4a5a;
+            box-shadow: 0 4px 12px rgba(107, 185, 214, 0.3);
+        }
 
         /* 内心想法：浅粉背景 + 斜体 */
         inner {
@@ -194,6 +216,24 @@ q::before, q::after { content: none; }
             font-family: Consolas, "Courier New", monospace;
             font-size: 0.9em;
         }
+        
+        /* 代码块 */
+        pre {
+            background: rgba(255, 214, 230, 0.2);
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin: 1em 0;
+            overflow-x: auto;
+            max-width: 100%;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        
+        pre code {
+            background: none;
+            border: none;
+            padding: 0;
+        }
 
         /* 列表 */
         ul, ol {
@@ -208,6 +248,88 @@ q::before, q::after { content: none; }
         
         ul li::marker {
             color: #d37b9f;
+        }
+
+        /* ===== details 折叠块 ===== */
+        
+        .content details {
+            margin: 1em 0;
+            padding: 0;
+            border: 1.5px solid rgba(211, 123, 159, 0.3);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.5);
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+        }
+        
+        .content summary {
+            padding: 12px 18px;
+            cursor: pointer;
+            font-weight: 600;
+            background: linear-gradient(135deg, rgba(248, 184, 198, 0.2), rgba(162, 216, 232, 0.2));
+            border-radius: 12px 12px 0 0;
+            user-select: none;
+            text-indent: 0;
+            display: block;
+            color: #5a3a4a;
+        }
+        
+        .content summary:hover {
+            background: linear-gradient(135deg, rgba(248, 184, 198, 0.3), rgba(162, 216, 232, 0.3));
+        }
+        
+        .content details[open] summary {
+            border-bottom: 1.5px solid rgba(211, 123, 159, 0.2);
+            border-radius: 12px 12px 0 0;
+        }
+        
+        /* details 内部内容容器 */
+        .content details > *:not(summary) {
+            padding: 12px 18px;
+            text-indent: 0;
+            max-width: 100%;
+            display: block;
+        }
+        
+        /* details 内容：保留换行 + 强制断行 */
+        .content details,
+        .content details * {
+            white-space: pre-wrap;
+            overflow-wrap: anywhere !important;
+            word-break: break-all !important;
+        }
+
+        .content details p {
+            text-align: left;
+            margin-bottom: 0.5em;
+        }
+
+        /* ===== 表格 ===== */
+        .content table {
+            width: 100%;
+            max-width: 100%;
+            border-collapse: collapse;
+            margin: 1em 0;
+            font-size: 0.95em;
+            table-layout: fixed;
+        }
+        
+        .content th, .content td {
+            border: 1.5px solid rgba(211, 123, 159, 0.3);
+            padding: 10px 14px;
+            text-align: left;
+            word-break: break-all;
+        }
+        
+        .content th {
+            background: linear-gradient(135deg, rgba(248, 184, 198, 0.3), rgba(162, 216, 232, 0.2));
+            font-weight: 600;
+            color: #5a3a4a;
+        }
+        
+        .content td {
+            background: rgba(255, 255, 255, 0.5);
         }
 
     </style>

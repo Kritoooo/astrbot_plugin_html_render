@@ -5,22 +5,23 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
+        html, body {
+            width: fit-content;
+            min-width: 100%;
+            max-width: 700px;
+        }
+        
         body {
             font-family: "Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", "SimSun", serif;
             background: #4a4a4a;
             padding: 40px;
-            display: flex;
-            justify-content: center;
-            min-height: 100vh;
         }
 
         .page {
             background: #fdf6e3;
             background-image: linear-gradient(to right, rgba(0,0,0,0.02) 0%, rgba(0,0,0,0) 5%, rgba(0,0,0,0) 95%, rgba(0,0,0,0.02) 100%);
             width: 100%;
-            max-width: 700px;
             padding: 60px 50px;
-            overflow-x: hidden;
             box-shadow: 
                 0 2px 5px rgba(0,0,0,0.1),
                 0 10px 40px rgba(0,0,0,0.4);
@@ -43,6 +44,24 @@
             line-height: 2.0;
             color: #2b2b2b;
             text-align: justify;
+            width: 100%;
+            /* 关键：限制内容宽度，强制换行 */
+            max-width: 100%;
+            overflow: hidden;
+        }
+
+        /* ===== 全局防溢出（关键修复） ===== */
+        .content * {
+            max-width: 100% !important;
+            word-wrap: break-word !important;
+            word-break: break-all !important;
+            overflow-wrap: anywhere !important;
+            box-sizing: border-box !important;
+        }
+        
+        /* 对于行内元素，使用 break-word 而非 break-all */
+        .content q, .content inner, .content act, .content code {
+            word-break: break-word !important;
         }
 
         /* 段落 */
@@ -66,18 +85,24 @@
         /* 引用块 */
         .content blockquote {
             text-indent: 0;
-            margin: 1.5em 2em;
-            padding: 0 1em;
+            margin: 1.5em 1em;
+            padding: 0.5em 1em;
             border-left: 3px solid #d3c6a6;
             color: #666;
             font-style: italic;
+            background: rgba(201, 184, 150, 0.05);
         }
 
         /* 列表 */
         .content ul, .content ol {
             text-indent: 0;
-            margin-left: 2em;
+            margin-left: 1.5em;
             margin-bottom: 1em;
+            padding-left: 0.5em;
+        }
+        
+        .content li {
+            margin-bottom: 0.3em;
         }
 
         /* 分割线 */
@@ -85,7 +110,7 @@
             border: 0;
             height: 1px;
             background-image: linear-gradient(to right, rgba(0,0,0,0), rgba(0,0,0,0.2), rgba(0,0,0,0));
-            margin: 3em 0;
+            margin: 2em 0;
         }
 
         /* ===== 语义标签样式 ===== */
@@ -95,9 +120,10 @@
             color: #8B4513;
             font-style: normal;
             background: rgba(139, 69, 19, 0.06);
-            padding: 2px 8px;
+            padding: 2px 6px;
             border-radius: 4px;
             font-weight: 500;
+            display: inline;
         }
         q::before { 
             content: """; 
@@ -119,6 +145,7 @@
             background: rgba(128, 128, 128, 0.08);
             padding: 2px 6px;
             border-radius: 3px;
+            display: inline;
         }
         inner::before { content: "（"; opacity: 0.5; }
         inner::after { content: "）"; opacity: 0.5; }
@@ -132,6 +159,7 @@
             text-decoration-style: dotted;
             text-decoration-color: rgba(105, 105, 105, 0.3);
             text-underline-offset: 3px;
+            display: inline;
         }
         
         /* 场景描写 */
@@ -159,14 +187,7 @@
         aside::before { content: "※ "; }
         aside::after { content: " ※"; }
 
-        /* ===== 修复超出边界问题 ===== */
-        
-        .content * {
-            max-width: 100%;
-            word-wrap: break-word;
-            word-break: break-word;
-            overflow-wrap: break-word;
-        }
+        /* ===== details 折叠块（关键修复） ===== */
         
         .content details {
             margin: 1em 0;
@@ -174,6 +195,9 @@
             border: 1px solid #d3c6a6;
             border-radius: 6px;
             background: rgba(201, 184, 150, 0.05);
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
         }
         
         .content summary {
@@ -184,7 +208,7 @@
             border-radius: 6px 6px 0 0;
             user-select: none;
             text-indent: 0;
-            word-break: break-word;
+            display: block;
         }
         
         .content summary:hover {
@@ -193,35 +217,75 @@
         
         .content details[open] summary {
             border-bottom: 1px solid #d3c6a6;
-            margin-bottom: 10px;
+            border-radius: 6px 6px 0 0;
         }
         
+        /* details 内部内容容器 */
         .content details > *:not(summary) {
-            padding: 0 16px 10px 16px;
+            padding: 10px 16px;
             text-indent: 0;
+            max-width: 100%;
+            display: block;
         }
         
-        .content details p,
-        .content details div,
-        .content details li {
-            word-break: break-all;
-            white-space: normal;
-            overflow-wrap: anywhere;
-        }
-        /* —— 保留原始换行 + 取消两端对齐 —— */
+        /* details 内容：保留换行 + 强制断行 */
         .content details,
         .content details * {
-            white-space: pre-wrap; /* \n ⇒ 换行 */
+            white-space: pre-wrap;
+            overflow-wrap: anywhere !important;
+            word-break: break-all !important;
         }
 
-            .content details p {
-                text-align: left; /* 关闭两端对齐，防止拉伸 */
-            }        
-        .content pre,
-        .content code {
-            word-break: normal;
+        .content details p {
+            text-align: left;
+            margin-bottom: 0.5em;
+        }
+        
+        /* ===== 代码块 ===== */
+        .content pre {
+            background: #f5f0e6;
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin: 1em 0;
             overflow-x: auto;
-            white-space: pre;
+            max-width: 100%;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        
+        .content code {
+            background: #f5f0e6;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Consolas", "Monaco", "Courier New", monospace;
+            font-size: 0.9em;
+        }
+        
+        .content pre code {
+            background: none;
+            padding: 0;
+        }
+
+        /* ===== 表格 ===== */
+        .content table {
+            width: 100%;
+            max-width: 100%;
+            border-collapse: collapse;
+            margin: 1em 0;
+            font-size: 0.95em;
+            table-layout: fixed;
+        }
+        
+        .content th, .content td {
+            border: 1px solid #d3c6a6;
+            padding: 8px 12px;
+            text-align: left;
+            word-break: break-all;
+        }
+        
+        .content th {
+            background: rgba(201, 184, 150, 0.15);
+            font-weight: 600;
         }
     </style>
 </head>

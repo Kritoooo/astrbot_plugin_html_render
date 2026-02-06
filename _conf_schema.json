@@ -100,5 +100,11 @@
         "description": "GIF 帧率",
         "default": 15,
         "hint": "每秒帧数，越高越流畅但文件越大。建议 10-20，推荐 15"
+    },
+    "gif_scale": {
+        "type": "int",
+        "description": "GIF 渲染缩放倍数",
+        "default": 2,
+        "hint": "GIF 动画的缩放倍数。启用智能裁切后可保持 2 而不影响速度，建议 1-3"
     }
 }

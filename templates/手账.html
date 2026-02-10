@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* ============================================================
+           🌸 手账贴纸风 · 精美渲染模板
+           ============================================================ */
+
+        :root {
+            /* —— 纸张与墨色 —— */
+            --bg-paper: #fef9f4;
+            --paper-white: #fffdf9;
+            --ink-primary: #5c4033;
+            --ink-secondary: #9c7a62;
+            --ink-light: #c4a882;
+
+            /* —— 🍬 糖果色系 —— */
+            --candy-rose: #f8a5b6;
+            --candy-pink: #ffb7c5;
+            --candy-peach: #ffd1a9;
+            --candy-yellow: #fff0a0;
+            --candy-mint: #a8e6cf;
+            --candy-cyan: #88d8f5;
+            --candy-blue: #a0c4ff;
+            --candy-lavender: #c3aed6;
+            --candy-purple: #d5aaee;
+            --candy-coral: #ff8a80;
+
+            /* —— 便签底色（半透明） —— */
+            --note-yellow: #fff9db;
+            --note-pink: #fff0f3;
+            --note-blue: #edf5ff;
+            --note-green: #eefbf0;
+            --note-purple: #f5f0ff;
+            --note-orange: #fff4e6;
+
+            /* —— 语义色 —— */
+            --color-dialogue: #fff3e0;
+            --color-dialogue-border: #ffb74d;
+            --color-inner: #ede7f6;
+            --color-inner-accent: #9575cd;
+            --color-act: #e0f2f1;
+            --color-act-accent: #26a69a;
+            --color-scene: #e3f2fd;
+            --color-scene-accent: #64b5f6;
+            --color-aside: #fce4ec;
+            --color-aside-accent: #f06292;
+
+            /* —— 字体 —— */
+            --font-cute: 'ZCOOL KuaiLe', 'Ma Shan Zheng', cursive;
+            --font-body: 'Noto Sans SC', "Microsoft YaHei", "PingFang SC", sans-serif;
+
+            /* —— 尺寸 —— */
+            --page-width: 520px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        /* ==================== 页面背景 ==================== */
+        body {
+            font-family: var(--font-body);
+            color: var(--ink-primary);
+            background-color: #fdf2f8;
+            /* 🌈 彩虹渐变 + 点阵 + 爱心水印 */
+            background-image:
+                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' opacity='0.03'%3E%3Ctext x='15' y='35' font-size='20'%3E♥%3C/text%3E%3C/svg%3E"),
+                radial-gradient(circle, #e0b0c0 1px, transparent 1px),
+                linear-gradient(135deg,
+                    %23fce4ec 0%25,
+                    %23f3e5f5 15%25,
+                    %23e8eaf6 30%25,
+                    %23e0f7fa 45%25,
+                    %23e8f5e9 60%25,
+                    %23fffde7 75%25,
+                    %23fff3e0 90%25,
+                    %23fce4ec 100%25);
+            background-size: 60px 60px, 20px 20px, 100% 100%;
+            padding: 35px;
+            display: inline-block;
+        }
+
+        /* ==================== 📓 主容器 ==================== */
+        .journal-page {
+            background: var(--paper-white);
+            border: 3px solid var(--ink-light);
+            border-radius: 24px;
+            padding: 50px 38px 40px;
+            position: relative;
+            width: var(--page-width);
+            max-width: var(--page-width);
+            /* 🧁 纸张堆叠 + 彩色阴影 */
+            box-shadow:
+                3px 3px 0 var(--candy-rose),
+                6px 6px 0 var(--candy-cyan),
+                9px 9px 0 var(--candy-mint),
+                0 20px 60px rgba(180, 120, 140, 0.15);
+            /* 📝 横线纸效果 */
+            background-image:
+                repeating-linear-gradient(
+                    transparent,
+                    transparent 31px,
+                    rgba(200, 170, 140, 0.12) 31px,
+                    rgba(200, 170, 140, 0.12) 32px
+                );
+            background-position: 0 15px;
+        }
+
+        /* ✂️ 内缝线 */
+        .journal-page::before {
+            content: "";
+            position: absolute;
+            top: 12px; bottom: 12px; left: 12px; right: 12px;
+            border: 2.5px dashed var(--candy-rose);
+            border-radius: 18px;
+            pointer-events: none;
+            opacity: 0.3;
+        }
+
+        /* ==================== 🎀 和纸胶带装饰 ==================== */
+        .tape {
+            position: absolute;
+            height: 26px;
+            border-radius: 2px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .tape-top {
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%) rotate(-1.5deg);
+            width: 120px;
+            background: repeating-linear-gradient(
+                135deg,
+                rgba(255, 183, 197, 0.65) 0px,
+                rgba(255, 183, 197, 0.65) 4px,
+                rgba(255, 220, 180, 0.65) 4px,
+                rgba(255, 220, 180, 0.65) 8px,
+                rgba(255, 240, 160, 0.55) 8px,
+                rgba(255, 240, 160, 0.55) 12px
+            );
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        }
+        .tape-left {
+            top: 40px;
+            left: -18px;
+            width: 90px;
+            transform: rotate(-35deg);
+            background: repeating-linear-gradient(
+                90deg,
+                rgba(168, 230, 207, 0.6) 0px,
+                rgba(168, 230, 207, 0.6) 4px,
+                rgba(136, 216, 245, 0.6) 4px,
+                rgba(136, 216, 245, 0.6) 8px
+            );
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        }
+        .tape-right {
+            bottom: 50px;
+            right: -15px;
+            width: 85px;
+            transform: rotate(30deg);
+            background: repeating-linear-gradient(
+                90deg,
+                rgba(195, 174, 214, 0.55) 0px,
+                rgba(195, 174, 214, 0.55) 5px,
+                rgba(255, 183, 197, 0.55) 5px,
+                rgba(255, 183, 197, 0.55) 10px
+            );
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        }
+
+        /* ==================== 🌟 贴纸装饰 ==================== */
+        .sticker {
+            position: absolute;
+            pointer-events: none;
+            z-index: 12;
+            filter: drop-shadow(1px 2px 2px rgba(0,0,0,0.1));
+        }
+        .sticker-star {
+            top: 22px; right: 30px;
+            font-size: 24px;
+            transform: rotate(15deg);
+            opacity: 0.7;
+        }
+        .sticker-flower {
+            bottom: 25px; left: 28px;
+            font-size: 22px;
+            transform: rotate(-10deg);
+            opacity: 0.65;
+        }
+        .sticker-heart {
+            top: 55px; left: 25px;
+            font-size: 16px;
+            transform: rotate(20deg);
+            opacity: 0.55;
+        }
+        .sticker-sparkle {
+            bottom: 60px; right: 25px;
+            font-size: 18px;
+            transform: rotate(-15deg);
+            opacity: 0.6;
+        }
+        .sticker-bow {
+            top: -5px; right: 80px;
+            font-size: 20px;
+            transform: rotate(8deg);
+            opacity: 0.65;
+        }
+
+        /* ==================== 🔖 丝带书签 ==================== */
+        .ribbon {
+            position: absolute;
+            top: -5px;
+            right: 42px;
+            width: 22px;
+            height: 70px;
+            background: linear-gradient(135deg, var(--candy-rose), var(--candy-coral));
+            border-radius: 0 0 3px 3px;
+            z-index: 11;
+            box-shadow: 1px 2px 4px rgba(0,0,0,0.12);
+        }
+        .ribbon::after {
+            content: "";
+            position: absolute;
+            bottom: -10px;
+            left: 0;
+            width: 0;
+            height: 0;
+            border-left: 11px solid var(--candy-coral);
+            border-right: 11px solid var(--candy-coral);
+            border-bottom: 10px solid transparent;
+        }
+
+        /* ==================== 📐 角花 ==================== */
+        .corner {
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            pointer-events: none;
+            z-index: 5;
+        }
+        .corner-tl {
+            top: 20px; left: 20px;
+            border-top: 3px solid var(--candy-rose);
+            border-left: 3px solid var(--candy-rose);
+            border-radius: 6px 0 0 0;
+        }
+        .corner-tr {
+            top: 20px; right: 20px;
+            border-top: 3px solid var(--candy-cyan);
+            border-right: 3px solid var(--candy-cyan);
+            border-radius: 0 6px 0 0;
+        }
+        .corner-bl {
+            bottom: 20px; left: 20px;
+            border-bottom: 3px solid var(--candy-mint);
+            border-left: 3px solid var(--candy-mint);
+            border-radius: 0 0 0 6px;
+        }
+        .corner-br {
+            bottom: 20px; right: 20px;
+            border-bottom: 3px solid var(--candy-lavender);
+            border-right: 3px solid var(--candy-lavender);
+            border-radius: 0 0 6px 0;
+        }
+        /* 角花小花朵 */
+        .corner-tl::after { content: "✿"; position: absolute; top: -2px; left: -2px; font-size: 10px; color: var(--candy-rose); }
+        .corner-tr::after { content: "❀"; position: absolute; top: -2px; right: -2px; font-size: 10px; color: var(--candy-cyan); }
+        .corner-bl::after { content: "✿"; position: absolute; bottom: -2px; left: -2px; font-size: 10px; color: var(--candy-mint); }
+        .corner-br::after { content: "❀"; position: absolute; bottom: -2px; right: -2px; font-size: 10px; color: var(--candy-lavender); }
+
+        /* ==================== 🎨 水彩晕染 ==================== */
+        .watercolor {
+            position: absolute;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.08;
+        }
+        .wc-1 {
+            width: 120px; height: 120px;
+            top: -20px; left: -20px;
+            background: radial-gradient(circle, var(--candy-rose), transparent 70%);
+        }
+        .wc-2 {
+            width: 100px; height: 100px;
+            bottom: -15px; right: -15px;
+            background: radial-gradient(circle, var(--candy-cyan), transparent 70%);
+        }
+        .wc-3 {
+            width: 80px; height: 80px;
+            top: 50%; left: -25px;
+            background: radial-gradient(circle, var(--candy-mint), transparent 70%);
+        }
+
+        /* ==================== 📝 内容区 ==================== */
+        .content {
+            font-size: 15.5px;
+            line-height: 2;
+            position: relative;
+            z-index: 2;
+            width: 100%;
+            max-width: 100%;
+            font-weight: 400;
+        }
+
+        /* 🔒 全局换行保护 */
+        .content, .content * {
+            max-width: 100% !important;
+            word-wrap: break-word !important;
+            word-break: break-word !important;
+            overflow-wrap: anywhere !important;
+            box-sizing: border-box !important;
+            white-space: normal !important;
+        }
+
+        /* ==================== ✏️ 段落 & 标题 ==================== */
+        .content p {
+            margin-bottom: 0.85em;
+            text-indent: 2em;
+        }
+        .content p:last-child { margin-bottom: 0; }
+
+        .content h1, .content h2, .content h3, .content h4 {
+            font-family: var(--font-cute);
+            text-indent: 0;
+            margin-top: 1.3em;
+            margin-bottom: 0.7em;
+            position: relative;
+            line-height: 1.5;
+        }
+
+        /* H1 - 丝带标题 */
+        .content h1 {
+            font-size: 24px;
+            color: #fff;
+            background: linear-gradient(135deg, var(--candy-rose), var(--candy-coral));
+            padding: 8px 25px 8px 20px;
+            border-radius: 0 25px 25px 0;
+            margin-left: -20px;
+            margin-right: 20px;
+            box-shadow: 2px 3px 8px rgba(248, 165, 182, 0.35);
+            display: block;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+        .content h1::before {
+            content: "🎀 ";
+        }
+
+        /* H2 - 荧光笔 */
+        .content h2 {
+            font-size: 21px;
+            color: var(--ink-primary);
+            display: inline-block;
+            padding: 2px 12px;
+            background: linear-gradient(transparent 45%, var(--candy-yellow) 45%, var(--candy-yellow) 85%, transparent 85%);
+        }
+        .content h2::before {
+            content: "✦ ";
+            color: var(--candy-coral);
+        }
+
+        /* H3 - 虚线底框 */
+        .content h3 {
+            font-size: 18px;
+            color: var(--color-act-accent);
+            display: inline-block;
+            border-bottom: 3px dotted var(--candy-lavender);
+            padding-bottom: 3px;
+        }
+        .content h3::before {
+            content: "♡ ";
+            color: var(--candy-lavender);
+        }
+
+        /* H4 */
+        .content h4 {
+            font-size: 16px;
+            color: var(--candy-mint);
+            font-weight: 700;
+        }
+        .content h4::before {
+            content: "☆ ";
+        }
+
+        /* ==================== 💬 对话 <q> ==================== */
+        q {
+            display: inline;
+            font-style: normal;
+            quotes: none;
+            color: #bf360c;
+            font-weight: 500;
+            background: linear-gradient(135deg, #fff8e1, #ffecb3);
+            padding: 4px 14px;
+            border-radius: 18px 18px 18px 4px;
+            border: 1.5px solid var(--candy-peach);
+            box-shadow: 1px 2px 5px rgba(255, 183, 77, 0.2);
+            line-height: 1.8;
+        }
+        q::before {
+            content: "❝ ";
+            color: var(--candy-coral);
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        q::after {
+            content: " ❞";
+            color: var(--candy-coral);
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        /* ==================== 💭 内心 <inner> ==================== */
+        inner {
+            display: inline;
+            color: var(--color-inner-accent);
+            font-style: italic;
+            background: linear-gradient(135deg, #ede7f6, #d1c4e9);
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 0.93em;
+            box-shadow: inset 0 1px 4px rgba(149, 117, 205, 0.1);
+            border: 1px solid rgba(149, 117, 205, 0.2);
+        }
+        inner::before {
+            content: "💭 ";
+            font-style: normal;
+        }
+
+        /* ==================== 🎬 动作 <act> ==================== */
+        act {
+            display: inline;
+            color: var(--color-act-accent);
+            font-weight: 600;
+            padding: 1px 6px;
+            background: linear-gradient(transparent 65%, rgba(168, 230, 207, 0.45) 65%);
+            text-decoration-line: underline;
+            text-decoration-style: wavy;
+            text-decoration-color: var(--candy-mint);
+            text-underline-offset: 4px;
+        }
+
+        /* ==================== 🏞️ 场景 <scene> ==================== */
+        scene {
+            display: block;
+            background: linear-gradient(180deg, #e8f4fd 0%, #d4ecfc 100%);
+            border: 4px solid #fff;
+            border-bottom-width: 20px;
+            border-radius: 6px;
+            padding: 18px 22px;
+            margin: 1.4em 0;
+            text-indent: 0;
+            font-style: italic;
+            color: #37474f;
+            box-shadow:
+                0 0 0 1.5px var(--candy-cyan),
+                3px 4px 10px rgba(100, 181, 246, 0.15);
+            position: relative;
+        }
+        /* 照片胶带 */
+        scene::before {
+            content: "";
+            position: absolute;
+            top: -8px;
+            left: 20px;
+            width: 50px;
+            height: 18px;
+            background: repeating-linear-gradient(
+                135deg,
+                rgba(168, 230, 207, 0.5) 0px,
+                rgba(168, 230, 207, 0.5) 3px,
+                rgba(255, 240, 160, 0.5) 3px,
+                rgba(255, 240, 160, 0.5) 6px
+            );
+            border-radius: 1px;
+            transform: rotate(-3deg);
+        }
+        /* 标签 */
+        scene::after {
+            content: "📷 Scene";
+            position: absolute;
+            bottom: -17px;
+            right: 12px;
+            font-size: 11px;
+            font-style: normal;
+            font-family: var(--font-cute);
+            color: var(--ink-secondary);
+            letter-spacing: 1px;
+        }
+
+        /* ==================== 📌 旁白 <aside> ==================== */
+        aside {
+            display: block;
+            background: linear-gradient(135deg, #fff0f3, #fce4ec);
+            padding: 14px 22px;
+            margin: 1.4em auto;
+            width: fit-content;
+            max-width: 88%;
+            text-align: center;
+            font-style: italic;
+            color: #880e4f;
+            transform: rotate(-0.8deg);
+            box-shadow: 2px 3px 8px rgba(240, 98, 146, 0.12);
+            border-radius: 3px;
+            text-indent: 0;
+            position: relative;
+            border-bottom: 3px solid var(--candy-pink);
+        }
+        /* 📎 图钉效果 */
+        aside::before {
+            content: "📌";
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 16px;
+            font-style: normal;
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.15));
+        }
+
+        /* ==================== 💜 引用块 ==================== */
+        .content blockquote {
+            text-indent: 0;
+            margin: 1.3em 0;
+            padding: 16px 22px 16px 28px;
+            background: linear-gradient(135deg, var(--note-purple), #ede7f6);
+            border-left: 5px solid var(--candy-lavender);
+            border-radius: 0 16px 16px 0;
+            color: #4a148c;
+            font-style: italic;
+            position: relative;
+            box-shadow: 2px 3px 8px rgba(195, 174, 214, 0.15);
+        }
+        .content blockquote::before {
+            content: "❝";
+            position: absolute;
+            top: 8px;
+            left: 10px;
+            font-size: 24px;
+            color: var(--candy-lavender);
+            font-style: normal;
+            line-height: 1;
+        }
+        .content blockquote::after {
+            content: "🌸";
+            position: absolute;
+            bottom: 6px;
+            right: 10px;
+            font-size: 14px;
+            font-style: normal;
+            opacity: 0.5;
+        }
+
+        /* ==================== 📋 列表 ==================== */
+        .content ul, .content ol {
+            text-indent: 0;
+            margin: 1em 0 1em 1.2em;
+            padding-left: 0.8em;
+        }
+        .content li {
+            margin-bottom: 0.5em;
+            line-height: 1.8;
+        }
+        .content ul li {
+            list-style: none;
+            position: relative;
+            padding-left: 1.2em;
+        }
+        .content ul li::before {
+            content: "🌷";
+            position: absolute;
+            left: -0.2em;
+            font-size: 0.85em;
+        }
+        .content ol li::marker {
+            color: var(--candy-rose);
+            font-weight: 700;
+        }
+
+        /* ==================== ✿ 分隔线 ==================== */
+        .content hr {
+            border: none;
+            height: 3px;
+            margin: 1.8em 2em;
+            background: linear-gradient(
+                90deg,
+                transparent 0%,
+                var(--candy-rose) 10%,
+                var(--candy-peach) 25%,
+                var(--candy-yellow) 40%,
+                var(--candy-mint) 55%,
+                var(--candy-cyan) 70%,
+                var(--candy-lavender) 85%,
+                transparent 100%
+            );
+            border-radius: 2px;
+            opacity: 0.6;
+        }
+
+        /* ==================== 💻 代码 ==================== */
+        .content code {
+            background: var(--note-orange);
+            color: #d84315;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 0.88em;
+            border: 1px solid var(--candy-peach);
+            white-space: pre-wrap !important;
+            word-break: break-all !important;
+        }
+        .content pre {
+            background: linear-gradient(180deg, #fff8f0, #ffeccc);
+            padding: 18px 20px;
+            border-radius: 14px;
+            margin: 1.2em 0;
+            overflow-x: auto;
+            border: 2px solid var(--candy-peach);
+            text-indent: 0;
+            white-space: pre-wrap !important;
+            word-break: break-all !important;
+            position: relative;
+        }
+        .content pre::before {
+            content: "🏷️ Code";
+            position: absolute;
+            top: -11px;
+            right: 14px;
+            background: var(--candy-peach);
+            color: #fff;
+            font-size: 11px;
+            padding: 2px 10px;
+            border-radius: 10px;
+            font-family: var(--font-cute);
+        }
+        .content pre code {
+            background: none;
+            border: none;
+            padding: 0;
+            color: var(--ink-primary);
+            border-radius: 0;
+        }
+
+        /* ==================== 📊 表格 ==================== */
+        .content table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 1.3em 0;
+            font-size: 0.92em;
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 3px 12px rgba(0,0,0,0.08);
+            table-layout: fixed;
+            border: 2px solid var(--candy-pink);
+        }
+        .content th, .content td {
+            padding: 10px 14px;
+            text-align: left;
+            border-bottom: 1.5px solid rgba(248, 165, 182, 0.25);
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
+        .content th {
+            background: linear-gradient(135deg, var(--candy-pink), var(--candy-peach));
+            color: #fff;
+            font-weight: 600;
+            font-size: 0.95em;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        .content tr:nth-child(even) td {
+            background: var(--note-pink);
+        }
+        .content tr:nth-child(odd) td {
+            background: #fff;
+        }
+        .content tr:hover td {
+            background: var(--candy-yellow);
+            transition: background 0.2s;
+        }
+
+        /* ==================== 🎁 折叠块 ==================== */
+        .content details {
+            margin: 1.3em 0;
+            border: 2px solid var(--candy-lavender);
+            border-radius: 16px;
+            background: #fff;
+            overflow: hidden;
+            width: 100%;
+            max-width: 100%;
+            box-shadow: 2px 3px 8px rgba(195, 174, 214, 0.12);
+        }
+        .content summary {
+            padding: 12px 18px;
+            cursor: pointer;
+            font-weight: 600;
+            background: linear-gradient(135deg, #f3e5f5, #e1bee7);
+            color: #6a1b9a;
+            user-select: none;
+            text-indent: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: normal !important;
+            word-break: break-word !important;
+            border-radius: 14px 14px 0 0;
+        }
+        .content summary::before {
+            content: "🎁";
+            flex-shrink: 0;
+        }
+        .content summary:hover {
+            filter: brightness(1.05);
+        }
+        .content details[open] summary {
+            border-bottom: 2px solid var(--candy-lavender);
+            border-radius: 14px 14px 0 0;
+        }
+        .content details[open] summary::before {
+            content: "🎊";
+        }
+        .content details > *:not(summary) {
+            padding: 15px 18px;
+            white-space: normal !important;
+            word-wrap: break-word !important;
+            word-break: break-word !important;
+            overflow-wrap: anywhere !important;
+        }
+        .content details p {
+            text-indent: 0;
+            margin-bottom: 0.5em;
+        }
+
+        /* ==================== ✨ 强调 ==================== */
+        .content strong {
+            color: #c62828;
+            font-weight: 700;
+            background: linear-gradient(transparent 55%, rgba(255, 205, 210, 0.6) 55%);
+            padding: 0 2px;
+        }
+        .content em {
+            color: #7b1fa2;
+            font-style: italic;
+            background: linear-gradient(transparent 55%, rgba(225, 190, 231, 0.4) 55%);
+            padding: 0 2px;
+        }
+
+        /* ==================== 🖼️ 图片 ==================== */
+        .content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+            border: 3px solid #fff;
+            box-shadow: 2px 3px 10px rgba(0,0,0,0.1);
+            margin: 0.5em 0;
+        }
+
+        /* ==================== 🌸 页脚装饰 ==================== */
+        .deco-footer {
+            margin-top: 28px;
+            text-align: center;
+            font-size: 13px;
+            opacity: 0.45;
+            letter-spacing: 6px;
+            color: var(--candy-rose);
+            font-family: var(--font-cute);
+        }
+
+        /* 花边底纹 */
+        .scallop-trim {
+            height: 16px;
+            margin-top: 20px;
+            background:
+                radial-gradient(circle at 8px 16px, transparent 8px, var(--candy-rose) 8px, var(--candy-rose) 9px, transparent 9px),
+                radial-gradient(circle at 24px 16px, transparent 8px, var(--candy-pink) 8px, var(--candy-pink) 9px, transparent 9px);
+            background-size: 32px 16px;
+            opacity: 0.25;
+        }
+    </style>
+</head>
+<body>
+    <div class="journal-page">
+        <!-- 和纸胶带 -->
+        <div class="tape tape-top"></div>
+        <div class="tape tape-left"></div>
+        <div class="tape tape-right"></div>
+
+        <!-- 丝带书签 -->
+        <div class="ribbon"></div>
+
+        <!-- 贴纸 -->
+        <span class="sticker sticker-star">⭐</span>
+        <span class="sticker sticker-flower">🌸</span>
+        <span class="sticker sticker-heart">💕</span>
+        <span class="sticker sticker-sparkle">✨</span>
+        <span class="sticker sticker-bow">🎀</span>
+
+        <!-- 角花 -->
+        <div class="corner corner-tl"></div>
+        <div class="corner corner-tr"></div>
+        <div class="corner corner-bl"></div>
+        <div class="corner corner-br"></div>
+
+        <!-- 水彩晕染 -->
+        <div class="watercolor wc-1"></div>
+        <div class="watercolor wc-2"></div>
+        <div class="watercolor wc-3"></div>
+
+        <!-- 内容 -->
+        <div class="content">{{content}}</div>
+
+        <!-- 花边 -->
+        <div class="scallop-trim"></div>
+
+        <!-- 页脚 -->
+        <div class="deco-footer">✦ 手账时光 ✦</div>
+    </div>
+</body>
+</html>

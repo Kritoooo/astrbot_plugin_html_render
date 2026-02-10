@@ -2,7 +2,8 @@
 # 模板加载、管理、内置默认模板
 
 import os
-from typing import Dict, List
+import re
+from typing import Dict, List, Optional
 
 from astrbot.api import logger
 
@@ -70,13 +71,15 @@ class TemplateManager:
         return sorted(templates)
 
     def load_template(self, template_name: str) -> str:
-        """从硬盘实时加载模板（每次调用都读取文件）"""
+        """从硬盘实时加载模板（每次调用都读取文件），自动剥离内置提示词注释"""
         filepath = os.path.join(self.TEMPLATE_DIR, f"{template_name}.html")
 
-        if os.path.exists(filepath):
+        if os.path.exists(filepath):    
             try:
                 with open(filepath, "r", encoding="utf-8") as f:
                     content = f.read()
+                    # 剥离内置提示词注释，避免渲染到图片中
+                    content = self.strip_builtin_prompt(content)
                     logger.debug(f"[HTML渲染] 已从硬盘加载模板: {template_name}")
                     return content
             except Exception as e:
@@ -95,7 +98,60 @@ class TemplateManager:
 
         logger.warning(f"[HTML渲染] 未知模板 {template_name}，回退到 card")
         return self.get_default_card_template()
+    # ==================== 内置提示词 ====================
 
+    # ==================== 内置提示词 ====================
+
+    _BUILTIN_PROMPT_PATTERN = re.compile(
+        r'<!--\s*BUILTIN_PROMPT\s*?\n(.*?)-->', re.DOTALL
+    )
+
+    @classmethod
+    def strip_builtin_prompt(cls, html: str) -> str:
+        """从模板 HTML 中移除内置提示词注释块（渲染前调用）"""
+        return cls._BUILTIN_PROMPT_PATTERN.sub('', html)
+
+    def extract_builtin_prompt(self, template_name: str) -> Optional[str]:
+        """
+        从指定模板中提取内置提示词。
+
+        :return: 提示词文本（已 strip），若无则返回 None
+        """
+        filepath = os.path.join(self.TEMPLATE_DIR, f"{template_name}.html")
+
+        if not os.path.exists(filepath):
+            return None
+
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                raw_html = f.read()
+        except Exception as e:
+            logger.error(f"[HTML渲染] 读取模板 {template_name} 失败: {e}")
+            return None
+
+        match = self._BUILTIN_PROMPT_PATTERN.search(raw_html)
+        if match:
+            prompt = match.group(1).strip()
+            if prompt:
+                logger.debug(f"[HTML渲染] 模板 {template_name} 包含内置提示词（{len(prompt)}字）")
+                return prompt
+
+        return None
+
+    def extract_all_builtin_prompts(self) -> Dict[str, str]:
+        """
+        扫描所有模板，提取所有包含内置提示词的模板。
+
+        :return: {模板名: 提示词文本}，只包含有内置提示词的模板
+        """
+        result: Dict[str, str] = {}
+        for template_name in self.get_available_templates():
+            prompt = self.extract_builtin_prompt(template_name)
+            if prompt:
+                result[template_name] = prompt
+        if result:
+            logger.info(f"[HTML渲染] 共 {len(result)} 个模板包含内置提示词: {list(result.keys())}")
+        return result
     def update_template_id_map(self):
         """更新模板 ID 映射（按名称排序，实时扫描）"""
         available = self.get_available_templates()
@@ -645,7 +701,7 @@ body {
     color: var(--color);
     font-weight: 600;
     box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-    animation: scrollLeft 8s linear infinite;
+    animation: scrollLeft 6s linear infinite;
     animation-delay: var(--delay);
 }
 @keyframes scrollLeft {

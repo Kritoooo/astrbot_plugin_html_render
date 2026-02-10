@@ -21,7 +21,7 @@ from astrbot.api.message_components import Image, Plain
 from astrbot.core.provider.entities import ProviderRequest
 from astrbot.core.star.star_tools import StarTools
 
-from renderer import html_to_image_playwright
+from renderer import html_to_image_playwright, init_browser, close_browser
 from template_manager import TemplateManager
 from text_processing import (
     detect_render_tag,
@@ -67,6 +67,8 @@ class HtmlRenderPlugin(Star):
             await self.template_mgr.load_templates()
             self.template_mgr.update_template_id_map()
             await self._ensure_playwright()
+            # 预启动浏览器实例（后续渲染复用，避免首次渲染等待）
+            await init_browser()
             logger.info("HTML 渲染插件初始化完成")
         except Exception as e:
             logger.error(f"HTML 渲染插件初始化失败: {e}")
@@ -86,6 +88,7 @@ class HtmlRenderPlugin(Star):
             logger.error(f"执行命令失败: {e}")
 
     async def terminate(self):
+        await close_browser()
         logger.info("HTML 渲染插件已停止")
 
     def _cleanup_cache(self, max_age_seconds: int = 300):
@@ -105,9 +108,9 @@ class HtmlRenderPlugin(Star):
             logger.warning(f"[HTML渲染] 清理缓存失败: {e}")
 
     def _schedule_delete(self, *paths):
-        """延迟60秒后删除文件（给消息发送留足时间）"""
+        """延迟删除文件（给消息发送留足时间，多图模式下图片生成耗时较长）"""
         async def _delete():
-            await asyncio.sleep(60)
+            await asyncio.sleep(300)
             for p in paths:
                 try:
                     if os.path.exists(p):
@@ -247,8 +250,8 @@ class HtmlRenderPlugin(Star):
         render_matches = detect_render_tag(text)
         has_render_tag = bool(render_matches)
 
-        # 自动合并模式
-        if render_matches and self.config.get("auto_merge_renders", False):
+        # 自动合并模式（仅当有多个 render 标签时才合并，单个标签走标准分割以保留模板名）
+        if render_matches and len(render_matches) > 1 and self.config.get("auto_merge_renders", False):
             logger.info(f"[HTML渲染] 检测到 {len(render_matches)} 个 <render> 标签，启用自动合并模式")
             merged_content = text
             specified_template = None
@@ -553,10 +556,37 @@ class HtmlRenderPlugin(Star):
 """
         req.system_prompt += f"\n\n{instruction}"
 
+        # 注入所有模板的内置提示词（方案C：全部注入 + 标注用户偏好）
+        all_prompts = self.template_mgr.extract_all_builtin_prompts()
+        if all_prompts:
+            user_id = self._get_user_id(event)
+            current_template = self.user_default_template.get(
+                user_id, self.config.get("default_template", "card")
+            )
+
+            prompt_sections = []
+            prompt_sections.append("## 模板专属指令")
+            prompt_sections.append(f"当前用户偏好的模板是: **{current_template}**")
+            prompt_sections.append(f"如果用户没有特别指定模板，请优先使用 {current_template} 模板。")
+            prompt_sections.append("")
+
+            for tpl_name, tpl_prompt in all_prompts.items():
+                is_current = " （当前用户偏好）" if tpl_name == current_template else ""
+                prompt_sections.append(f"### 模板「{tpl_name}」的专属指令{is_current}")
+                prompt_sections.append(tpl_prompt)
+                prompt_sections.append("")
+
+            builtin_block = "\n".join(prompt_sections)
+            req.system_prompt += f"\n\n{builtin_block}"
+            logger.info(f"[HTML渲染] 已注入 {len(all_prompts)} 个模板的内置提示词，当前偏好: {current_template}")
+
     @filter.on_llm_response(priority=40)
     async def on_llm_response(self, event: AstrMessageEvent, resp):
         if resp and resp.completion_text:
-            event.set_extra("html_render_original_text", resp.completion_text)
+            # 优先使用 ComfyUI 清理后的文本（已移除 <pic> 和 <think> 标签）
+            cleaned = event.get_extra("comfy_cleaned_text")
+            text_to_save = cleaned if cleaned else resp.completion_text
+            event.set_extra("html_render_original_text", text_to_save)
 
     @filter.on_decorating_result(priority=40)
     async def on_decorating_result(self, event: AstrMessageEvent):
@@ -574,23 +604,20 @@ class HtmlRenderPlugin(Star):
         new_chain: List = []
         for item in result.chain:
             if isinstance(item, Plain):
-                comps = await self._process_text(item.text, user_id)
-                new_chain.extend(comps)
+                # 清理可能残留的 <pic> 和 <think> 标签
+                text_to_render = re.sub(r'<pic\s+prompt=".*?">', '', item.text, flags=re.DOTALL)
+                text_to_render = re.sub(r'<think>.*?</think>', '', text_to_render, flags=re.DOTALL)
+
+                # 在渲染前剥离 <ctx> 标签（仅移除标签本身，保留内部内容）
+                text_to_render = re.sub(r'</?ctx>', '', text_to_render)
+
+                text_to_render = text_to_render.strip()
+                if text_to_render:
+                    comps = await self._process_text(text_to_render, user_id)
+                    new_chain.extend(comps)
             else:
                 new_chain.append(item)
         result.chain = new_chain
-
-        # 清除 <ctx> 标签
-        ctx_pattern = re.compile(r"<ctx>[\s\S]*?</ctx>", re.DOTALL)
-        final_chain: List = []
-        for comp in result.chain:
-            if isinstance(comp, Plain):
-                cleaned = ctx_pattern.sub("", comp.text)
-                if cleaned.strip():
-                    final_chain.append(Plain(cleaned))
-            else:
-                final_chain.append(comp)
-        result.chain = final_chain
 
         # 手动更新历史记录
         try:

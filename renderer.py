@@ -1,5 +1,6 @@
 # renderer.py
 # HTML → 图片渲染（Playwright），支持静态 PNG 与 GIF 动画（时间轴跳帧）
+# 使用浏览器实例池避免重复启动 Chromium
 
 import asyncio
 import io
@@ -19,6 +20,58 @@ except ImportError:
         "可通过 pip install Pillow 安装。"
     )
 
+# ==================== 浏览器实例池 ====================
+
+_playwright_instance = None
+_browser_instance = None
+_browser_lock = asyncio.Lock()
+
+
+async def init_browser():
+    """初始化浏览器实例（插件启动时调用）"""
+    global _playwright_instance, _browser_instance
+    async with _browser_lock:
+        if _browser_instance is not None:
+            return
+        try:
+            from playwright.async_api import async_playwright
+            _playwright_instance = await async_playwright().start()
+            _browser_instance = await _playwright_instance.chromium.launch()
+            logger.info("[HTML渲染] 浏览器实例已启动（复用模式）")
+        except Exception as e:
+            logger.error(f"[HTML渲染] 浏览器实例启动失败: {e}")
+            _playwright_instance = None
+            _browser_instance = None
+
+
+async def close_browser():
+    """关闭浏览器实例（插件停止时调用）"""
+    global _playwright_instance, _browser_instance
+    async with _browser_lock:
+        if _browser_instance is not None:
+            try:
+                await _browser_instance.close()
+            except Exception:
+                pass
+            _browser_instance = None
+        if _playwright_instance is not None:
+            try:
+                await _playwright_instance.stop()
+            except Exception:
+                pass
+            _playwright_instance = None
+        logger.info("[HTML渲染] 浏览器实例已关闭")
+
+
+async def _get_browser():
+    """获取浏览器实例，若不存在则自动创建"""
+    global _browser_instance
+    if _browser_instance is None or not _browser_instance.is_connected():
+        await init_browser()
+    return _browser_instance
+
+
+# ==================== 动画区域检测 ====================
 
 async def _detect_animated_region(
     page,
@@ -95,7 +148,6 @@ async def _detect_animated_region(
 
     # ====== 策略2：像素对比回退 ======
     try:
-        # 用时间轴跳帧方式对比两个时间点
         has_animations = await page.evaluate("document.getAnimations().length > 0")
         if has_animations:
             await page.evaluate("""() => {
@@ -104,7 +156,7 @@ async def _detect_animated_region(
                     a.currentTime = 0;
                 });
             }""")
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.05)
             raw_a = await page.screenshot(type="png")
             shot_a = PILImage.open(io.BytesIO(raw_a)).convert("RGB")
 
@@ -113,7 +165,7 @@ async def _detect_animated_region(
                     a.currentTime = 2000;
                 });
             }""")
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.05)
             raw_b = await page.screenshot(type="png")
             shot_b = PILImage.open(io.BytesIO(raw_b)).convert("RGB")
 
@@ -173,6 +225,8 @@ async def _get_animation_duration(page) -> float:
         return 3000.0
 
 
+# ==================== 主渲染函数 ====================
+
 async def html_to_image_playwright(
     html_content: str,
     output_image_path: str,
@@ -184,8 +238,158 @@ async def html_to_image_playwright(
 ) -> bool:
     """
     使用 Playwright 将 HTML 内容渲染成图片。
+    复用浏览器实例，每次只创建新页面。
     GIF 模式使用时间轴跳帧：暂停动画 → seek到每帧时间点 → 截图，零等待。
     """
+    import time as _time
+    _t_start = _time.perf_counter()
+
+    page = None
+    context = None
+    try:
+        browser = await _get_browser()
+        if browser is None:
+            logger.error("[HTML渲染] 无法获取浏览器实例，回退到独立模式")
+            return await _fallback_render(
+                html_content, output_image_path, scale, width,
+                is_gif, duration, fps,
+            )
+
+        context = await browser.new_context(
+            device_scale_factor=scale,
+            viewport={"width": width, "height": 800},
+        )
+        page = await context.new_page()
+
+        _t_page = _time.perf_counter()
+
+        # domcontentloaded 足够：纯本地 HTML 无外部资源需要等待
+        await page.set_content(html_content, wait_until="domcontentloaded")
+        # 等待一帧让 CSS 动画和布局稳定
+        await page.evaluate("() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")
+
+        _t_content = _time.perf_counter()
+        logger.debug(f"[性能] 页面创建: {_t_page - _t_start:.3f}s, 内容加载: {_t_content - _t_page:.3f}s")
+
+        if not is_gif:
+            await page.screenshot(path=output_image_path, full_page=True)
+            _t_end = _time.perf_counter()
+            logger.info(f"[性能] 静态渲染总耗时: {_t_end - _t_start:.3f}s")
+        else:
+            if not GIF_AVAILABLE:
+                logger.warning("Pillow 未安装，回退到静态截图")
+                await page.screenshot(path=output_image_path, full_page=True)
+            else:
+                # 展开视口到完整内容高度
+                content_h = await page.evaluate("document.body.scrollHeight")
+                full_height = max(content_h, 200)
+                await page.set_viewport_size({"width": width, "height": full_height})
+                await page.evaluate("() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")
+
+                # 1. 先截完整静态图
+                await page.screenshot(path=output_image_path, full_page=True)
+                logger.info("[GIF] 已生成静态全页截图")
+
+                # 2. 检测动画区域
+                clip = await _detect_animated_region(page, scale, width, full_height)
+
+                # 3. 如果有动画区域，用时间轴跳帧录制
+                if clip:
+                    gif_path = os.path.splitext(output_image_path)[0] + ".gif"
+
+                    anim_duration_ms = await _get_animation_duration(page)
+                    record_duration_ms = min(duration * 1000, anim_duration_ms)
+
+                    frame_count = int(record_duration_ms / 1000 * fps)
+                    frame_count = max(frame_count, 10)
+                    frame_interval_ms = record_duration_ms / frame_count
+
+                    logger.info(
+                        f"[GIF] 时间轴跳帧模式：动画周期={anim_duration_ms:.0f}ms，"
+                        f"录制={record_duration_ms:.0f}ms，{frame_count}帧，"
+                        f"裁切={clip['width']:.0f}×{clip['height']:.0f}"
+                    )
+
+                    # 暂停所有动画
+                    await page.evaluate("document.getAnimations().forEach(a => a.pause())")
+
+                    frames = []
+                    record_start = _time.perf_counter()
+
+                    for i in range(frame_count):
+                        target_time = i * frame_interval_ms
+                        await page.evaluate(
+                            f"document.getAnimations().forEach(a => a.currentTime = {target_time})"
+                        )
+                        await asyncio.sleep(0.02)
+
+                        frame_bytes = await page.screenshot(
+                            clip=clip, type="jpeg", quality=85
+                        )
+                        frame_img = PILImage.open(io.BytesIO(frame_bytes)).convert("RGB")
+                        frame_img = frame_img.convert("P", palette=PILImage.ADAPTIVE, colors=256)
+                        frames.append(frame_img)
+
+                    # 恢复播放
+                    await page.evaluate("document.getAnimations().forEach(a => a.play())")
+
+                    record_time = _time.perf_counter() - record_start
+                    logger.info(f"[GIF] 跳帧完成：{len(frames)}帧，耗时{record_time:.1f}s")
+
+                    out_dir = os.path.dirname(output_image_path)
+                    if out_dir:
+                        os.makedirs(out_dir, exist_ok=True)
+
+                    if frames:
+                        compose_start = _time.perf_counter()
+                        frame_display_ms = int(frame_interval_ms)
+                        frames[0].save(
+                            gif_path,
+                            save_all=True,
+                            append_images=frames[1:],
+                            duration=frame_display_ms,
+                            loop=0,
+                            optimize=True,
+                        )
+                        compose_time = _time.perf_counter() - compose_start
+                        logger.info(f"[GIF] 合成完成，耗时{compose_time:.1f}s")
+                else:
+                    logger.info("[GIF] 未检测到动画区域，仅输出静态图")
+
+            _t_end = _time.perf_counter()
+            logger.info(f"[性能] GIF渲染总耗时: {_t_end - _t_start:.3f}s")
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Playwright 渲染失败: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+
+        # 浏览器可能已崩溃，重置实例
+        global _browser_instance
+        _browser_instance = None
+        return False
+
+    finally:
+        # 只关闭 context/page，不关闭浏览器
+        if context is not None:
+            try:
+                await context.close()
+            except Exception:
+                pass
+
+
+async def _fallback_render(
+    html_content: str,
+    output_image_path: str,
+    scale: int,
+    width: int,
+    is_gif: bool,
+    duration: float,
+    fps: int,
+) -> bool:
+    """回退到独立浏览器模式（浏览器池不可用时）"""
     try:
         from playwright.async_api import async_playwright
 
@@ -196,119 +400,12 @@ async def html_to_image_playwright(
                 viewport={"width": width, "height": 800},
             )
             page = await context.new_page()
-            await page.set_content(html_content, wait_until="networkidle")
-            await asyncio.sleep(0.3)
-
-            if not is_gif:
-                await page.screenshot(path=output_image_path, full_page=True)
-            else:
-                if not GIF_AVAILABLE:
-                    logger.warning("Pillow 未安装，回退到静态截图")
-                    await page.screenshot(
-                        path=output_image_path, full_page=True,
-                    )
-                else:
-                    import time
-
-                    # 展开视口到完整内容高度
-                    content_h = await page.evaluate("document.body.scrollHeight")
-                    full_height = max(content_h, 200)
-                    await page.set_viewport_size(
-                        {"width": width, "height": full_height}
-                    )
-                    await asyncio.sleep(0.3)
-
-                    # 1. 先截完整静态图
-                    static_path = output_image_path  # .png
-                    await page.screenshot(path=static_path, full_page=True)
-                    logger.info(f"[GIF] 已生成静态全页截图")
-
-                    # 2. 让动画跑一下再检测区域
-                    await asyncio.sleep(0.5)
-
-                    # 3. 检测动画区域
-                    clip = await _detect_animated_region(
-                        page, scale, width, full_height
-                    )
-
-                    # 4. 如果有动画区域，用时间轴跳帧录制
-                    if clip:
-                        gif_path = os.path.splitext(output_image_path)[0] + ".gif"
-
-                        # 获取动画实际周期
-                        anim_duration_ms = await _get_animation_duration(page)
-                        # 录制时长：取配置时长和动画周期的较小值
-                        record_duration_ms = min(duration * 1000, anim_duration_ms)
-
-                        frame_count = int(record_duration_ms / 1000 * fps)
-                        frame_count = max(frame_count, 10)  # 至少10帧
-                        frame_interval_ms = record_duration_ms / frame_count
-
-                        logger.info(
-                            f"[GIF] 时间轴跳帧模式：动画周期={anim_duration_ms:.0f}ms，"
-                            f"录制={record_duration_ms:.0f}ms，{frame_count}帧，"
-                            f"裁切={clip['width']:.0f}×{clip['height']:.0f}"
-                        )
-
-                        # 暂停所有动画
-                        await page.evaluate("document.getAnimations().forEach(a => a.pause())")
-
-                        frames = []
-                        record_start = time.time()
-
-                        for i in range(frame_count):
-                            # 跳到指定时间点
-                            target_time = i * frame_interval_ms
-                            await page.evaluate(
-                                f"document.getAnimations().forEach(a => a.currentTime = {target_time})"
-                            )
-                            # 给渲染引擎一点时间应用变化
-                            await asyncio.sleep(0.02)
-
-                            frame_bytes = await page.screenshot(
-                                clip=clip, type="jpeg", quality=85
-                            )
-                            frame_img = PILImage.open(
-                                io.BytesIO(frame_bytes)
-                            ).convert("RGB")
-                            frame_img = frame_img.convert(
-                                "P", palette=PILImage.ADAPTIVE, colors=256
-                            )
-                            frames.append(frame_img)
-
-                        # 恢复播放
-                        await page.evaluate("document.getAnimations().forEach(a => a.play())")
-
-                        record_time = time.time() - record_start
-                        logger.info(
-                            f"[GIF] 跳帧完成：{len(frames)}帧，耗时{record_time:.1f}s"
-                        )
-
-                        out_dir = os.path.dirname(output_image_path)
-                        if out_dir:
-                            os.makedirs(out_dir, exist_ok=True)
-
-                        if frames:
-                            compose_start = time.time()
-                            # 每帧实际显示时长
-                            frame_display_ms = int(frame_interval_ms)
-                            frames[0].save(
-                                gif_path,
-                                save_all=True,
-                                append_images=frames[1:],
-                                duration=frame_display_ms,
-                                loop=0,
-                                optimize=True,
-                            )
-                            compose_time = time.time() - compose_start
-                            logger.info(f"[GIF] 合成完成，耗时{compose_time:.1f}s")
-                    else:
-                        logger.info("[GIF] 未检测到动画区域，仅输出静态图")
-
+            await page.set_content(html_content, wait_until="domcontentloaded")
+            await page.evaluate("() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")
+            await page.screenshot(path=output_image_path, full_page=True)
             await browser.close()
+            logger.info("[HTML渲染] 回退模式渲染完成（仅静态图）")
             return True
     except Exception as e:
-        logger.error(f"Playwright 渲染失败: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
+        logger.error(f"[HTML渲染] 回退渲染也失败: {e}")
         return False

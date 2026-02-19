@@ -7,6 +7,7 @@ import os
 import re
 import sys
 import uuid
+import base64
 from typing import Dict, List, Optional
 
 # 将插件目录加入搜索路径，使同目录模块可导入
@@ -57,6 +58,8 @@ class HtmlRenderPlugin(Star):
         # GIF 配置
         self.gif_duration = config.get("gif_duration", 3.0)
         self.gif_fps = config.get("gif_fps", 15)
+# 背景图缓存（None = 未加载，"" = 无背景图，非空 = data URL）
+        self._bg_data_url: Optional[str] = None
 
     # ==================== 生命周期 ====================
 
@@ -91,6 +94,41 @@ class HtmlRenderPlugin(Star):
         await close_browser()
         logger.info("HTML 渲染插件已停止")
 
+    def _get_bg_data_url(self) -> str:
+            """读取配置的背景图片并转为 base64 Data URL（结果缓存，首次调用后不再重复读取）"""
+            if self._bg_data_url is not None:
+                return self._bg_data_url
+
+            bg_config = self.config.get("background_image", "").strip()
+            if not bg_config:
+                self._bg_data_url = ""
+                return ""
+
+            bg_path = os.path.join(_PLUGIN_DIR, bg_config)
+            if not os.path.isfile(bg_path):
+                logger.warning(f"[HTML渲染] 背景图片不存在: {bg_path}，将使用默认背景")
+                self._bg_data_url = ""
+                return ""
+
+            try:
+                ext = os.path.splitext(bg_path)[1].lower()
+                mime_map = {
+                    ".jpg": "image/jpeg",
+                    ".jpeg": "image/jpeg",
+                    ".png": "image/png",
+                    ".webp": "image/webp",
+                    ".gif": "image/gif",
+                }
+                mime = mime_map.get(ext, "image/png")
+                with open(bg_path, "rb") as f:
+                    encoded = base64.b64encode(f.read()).decode("utf-8")
+                self._bg_data_url = f"data:{mime};base64,{encoded}"
+                logger.info(f"[HTML渲染] 背景图片已加载: {bg_config} ({mime})")
+            except Exception as e:
+                logger.warning(f"[HTML渲染] 读取背景图片失败: {e}")
+                self._bg_data_url = ""
+
+            return self._bg_data_url
     def _cleanup_cache(self, max_age_seconds: int = 300):
         """清理缓存目录中的过期文件"""
         import time
@@ -196,7 +234,24 @@ class HtmlRenderPlugin(Star):
             # 检测内容是否自带 <style> 标签，若有则为完整 HTML，跳过文本处理
             has_own_style = bool(re.search(r'<style\b', content, re.IGNORECASE))
             full_html = self._apply_template(content, template_name, is_raw_html=has_own_style)
-
+            # 注入自定义背景图（转为 base64 内嵌，避免 Playwright 沙箱限制）
+            bg_data_url = self._get_bg_data_url()
+            if bg_data_url:
+                bg_style = (
+                    '<style>'
+                    'body {'
+                    f'  background-image: url("{bg_data_url}") !important;'
+                    '  background-size: cover !important;'
+                    '  background-position: center !important;'
+                    '  background-repeat: no-repeat !important;'
+                    '  background-attachment: local !important;'
+                    '}'
+                    '</style>'
+                )
+                if '</head>' in full_html:
+                    full_html = full_html.replace('</head>', bg_style + '</head>', 1)
+                else:
+                    full_html = bg_style + full_html
             # GIF 模式始终用 .png 作为主输出（静态图），GIF 另存
             filename_base = f"render_{uuid.uuid4().hex[:12]}"
             output_path = os.path.join(self.IMAGE_CACHE_DIR, f"{filename_base}.png")
@@ -248,44 +303,36 @@ class HtmlRenderPlugin(Star):
     async def _process_text(self, text: str, user_id: Optional[str] = None) -> List:
         components: List = []
         render_matches = detect_render_tag(text)
-        has_render_tag = bool(render_matches)
 
-        # 自动合并模式（仅当有多个 render 标签时才合并，单个标签走标准分割以保留模板名）
-        if render_matches and len(render_matches) > 1 and self.config.get("auto_merge_renders", False):
-            logger.info(f"[HTML渲染] 检测到 {len(render_matches)} 个 <render> 标签，启用自动合并模式")
-            merged_content = text
-            specified_template = None
-            is_gif = False
-            for full_match, tpl_name, content, gif_flag in render_matches:
-                if tpl_name and not specified_template:
-                    specified_template = tpl_name
-                if gif_flag:
-                    is_gif = True
-                merged_content = merged_content.replace(full_match, content)
-
-            final_tpl = specified_template if specified_template else self.config.get("merged_template", "novel")
-            result = await self._render_content(merged_content.strip(), final_tpl, user_id, is_gif)
-            if result:
-                if isinstance(result, list):
-                    components.extend(result)
-                else:
-                    components.append(result)
-            else:
-                components.append(Plain(text))
-            return components
-
-        # 标准分割模式
         if render_matches:
+            # 有 <render> 标签：按标签分割，每个块用指定模板渲染
+            # 标签之间/之后的剩余内容也一并渲染（不发纯文本）
             logger.info(f"[HTML渲染] 检测到 {len(render_matches)} 个 <render> 标签")
             remaining = text
+            last_template = None
+
             for full_match, tpl_name, content, is_gif in render_matches:
                 parts = remaining.split(full_match, 1)
                 before = parts[0]
                 remaining = parts[1] if len(parts) > 1 else ""
 
-                if before and before.strip():
-                    components.append(Plain(before))
+                # render 块之前的文本：也渲染成图片
+                # 过滤掉 HTML 注释、纯空白、纯符号等无意义内容
+                before_clean = before.strip() if before else ""
+                before_clean = re.sub(r'<!--.*?-->', '', before_clean, flags=re.DOTALL).strip()
+                if before_clean and len(before_clean) > 0 and not re.fullmatch(r'[\s\n\r\t.,;:!?…—\-_=+*/\\|@#$%^&(){}[\]<>\'\"~`]+', before_clean):
+                    before_result = await self._render_content(
+                        before.strip(), last_template or tpl_name, user_id, False
+                    )
+                    if before_result:
+                        if isinstance(before_result, list):
+                            components.extend(before_result)
+                        else:
+                            components.append(before_result)
+                    else:
+                        logger.warning("[HTML渲染] render块之间的内容渲染失败，跳过")
 
+                # render 块本身
                 result = await self._render_content(content, tpl_name, user_id, is_gif)
                 if result:
                     if isinstance(result, list):
@@ -293,25 +340,35 @@ class HtmlRenderPlugin(Star):
                     else:
                         components.append(result)
                 else:
-                    components.append(Plain(f"[渲染失败]\n{content}"))
+                    logger.warning(f"[HTML渲染] render块渲染失败，模板: {tpl_name}")
 
+                if tpl_name:
+                    last_template = tpl_name
+
+            # 最后一个 render 块之后的剩余文本：也渲染成图片
             if remaining and remaining.strip():
-                components.append(Plain(remaining))
+                remaining_result = await self._render_content(
+                    remaining.strip(), last_template, user_id, False
+                )
+                if remaining_result:
+                    if isinstance(remaining_result, list):
+                        components.extend(remaining_result)
+                    else:
+                        components.append(remaining_result)
+                else:
+                    logger.warning("[HTML渲染] render标签后的剩余内容渲染失败，跳过")
 
-        elif self.config.get("enable_auto_detect", True) and self._detect_should_render(text, has_render_tag):
-            logger.info("[HTML渲染] 检测到 HTML 标签，触发自动渲染")
-            image = await self._render_content(text, None, user_id, False)
-            components.append(image if image else Plain(text))
-
-        elif self.config.get("auto_render_all", False):
-            min_len = self.config.get("auto_render_min_length", 20)
-            if len(text.strip()) >= min_len:
-                image = await self._render_content(text, None, user_id, False)
-                components.append(image if image else Plain(text))
-            else:
-                components.append(Plain(text))
         else:
-            components.append(Plain(text))
+            # 无 <render> 标签：整体用默认模板渲染
+            logger.info("[HTML渲染] 无 <render> 标签，整体渲染")
+            result = await self._render_content(text.strip(), None, user_id, False)
+            if result:
+                if isinstance(result, list):
+                    components.extend(result)
+                else:
+                    components.append(result)
+            else:
+                logger.warning("[HTML渲染] 整体渲染失败，跳过")
 
         return components
 
@@ -518,7 +575,7 @@ class HtmlRenderPlugin(Star):
 
         instruction = f"""
 ## HTML 渲染功能
-你的回复会被渲染成精美图片。请使用语义标签标记不同类型的内容。
+你的回复会被自动渲染成精美图片。请使用语义标签标记不同类型的内容，使渲染效果更丰富。
 
 ### 语义标签用法
 - <q>对话内容</q> → 对话台词，会显示为引号样式
@@ -527,13 +584,21 @@ class HtmlRenderPlugin(Star):
 - <scene>场景</scene> → 场景环境描写，会显示为独立段落块
 - <aside>旁白</aside> → 叙述性旁白，会居中显示
 
-### 格式要求
-1. 用 <render template="模板名"> 包裹正文内容
-2. 可用模板: {template_list}
-3. 在标签外写普通叙述文字
+### 模板指定（可选）
+如果你想指定渲染模板，可以用 <render template="模板名"> 包裹内容。
+可用模板: {template_list}
+不指定时系统会自动使用用户的默认模板。
 
-### 完整示例
-<render template="novel">
+### 重要规则
+- 你的所有回复内容都会被渲染成图片，请确保所有内容（包括状态面板、角色信息等）都在回复中完整输出
+- （核心）此项最高优先级，如果使用 <render> 标签，请确保所有内容都在标签内部，不要在标签外遗留内容。如果冲突，遵循该项。结尾必须是 <render>标签，不能是其它东西。
+   即 
+   <render template="模板名">
+   其它所有内容
+   <render>
+- 如果用户要求你输出其它html内容，不要用 ```html ``` 或```代码块裹你的 HTML 输出。直接写 HTML 标签即可，系统会自动渲染。代码块标记会导致 HTML 被当作纯文本代码展示。
+包
+### 示例
 <scene>月光如水，洒落在寂静的庭院中。</scene>
 
 林晓站在门口，望着眼前的身影，心跳不由得加速起来。
@@ -547,12 +612,6 @@ class HtmlRenderPlugin(Star):
 他没有回答，只是静静地看着她。
 
 <aside>命运的齿轮，从这一刻开始转动。</aside>
-</render>
-
-### 回复格式
-<ctx>
-你的完整回复内容
-</ctx>
 """
         req.system_prompt += f"\n\n{instruction}"
 

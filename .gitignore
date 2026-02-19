@@ -13,3 +13,6 @@ env/
 Thumbs.db
 .vscode/
 .idea/
+# Git 提交脚本（不需要提交）
+git提交.py
+git提交.py

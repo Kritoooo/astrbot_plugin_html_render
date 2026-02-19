@@ -1,14 +1,30 @@
 <!--BUILTIN_PROMPT
-优先使用梦幻模板，在使用梦幻模板时需要注意：
+优先使用魔女特辑模板，在使用魔女特辑模板时需要注意：
 请务必严格按照以下格式输出：
 1. 开头：写一句符合情境的问候或哲学短句（如"晨光熹微，万物初醒"），并用 <kaitou> 和 </kaitou> 标签包裹。
 2. 正文：正常的回复内容。
 3. 结尾：写一句余韵悠长的结语或名言（如"且将新火试新茶，诗酒趁年华"），并用 <jiewei> 和 </jiewei> 标签包裹。
 
-示例：
+重要：<pic> 和 <think> 标签会被系统自动移除，可以直接写在 <render> 块内部，无需拆分。始终使用一个完整的 <render> 块包裹所有内容。
+
+无图片时的示例：
+<render template="魔女特辑">
 <kaitou>这是开头的内容</kaitou>
 这是正文内容...
 <jiewei>这是结尾的内容</jiewei>
+</render>
+
+有图片时的示例：
+<render template="魔女特辑">
+<kaitou>晨光熹微，万物初醒</kaitou>
+这是第一段正文内容...
+<think>
+思考画面构图...
+</think>
+<pic prompt="masterpiece, best quality, 1girl, ...">
+这是第二段正文内容...
+<jiewei>且将新火试新茶，诗酒趁年华</jiewei>
+</render>
 -->
 <!DOCTYPE html>
 <html>
@@ -416,54 +432,184 @@ aside {
 
 /* ==================== 页脚名言 ==================== */
 .footer-area {
-  padding: 0 30px 24px;
+  padding: 0 30px 28px;
+  position: relative;
+}
+
+/* 背景光晕效果 */
+.footer-area::before {
+  content: "";
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, var(--primary-light), transparent 70%);
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: 0;
 }
 
 .footer-quote {
-  padding: 22px 20px;
+  padding: 26px 24px;
   text-align: center;
-  background: var(--warm);
-  border-radius: 14px;
+  background: linear-gradient(135deg, #fdfcfb 0%, var(--warm) 100%);
+  border-radius: 16px;
   position: relative;
+  box-shadow: 
+    0 4px 16px rgba(0,0,0,.06),
+    0 1px 3px rgba(0,0,0,.08);
+  border: 1px solid rgba(255,255,255,.8);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  z-index: 1;
 }
+
+.footer-quote:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 8px 24px rgba(0,0,0,.10),
+    0 2px 6px rgba(0,0,0,.12);
+}
+
+/* 顶部渐变装饰条 */
 .footer-quote::before {
   content: "";
   position: absolute;
-  top: 0; left: 20px; right: 20px;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--primary), var(--accent), var(--secondary), var(--tertiary), transparent);
-  border-radius: 2px;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, 
+    transparent, 
+    var(--primary) 20%, 
+    var(--accent) 40%,
+    var(--secondary) 60%, 
+    var(--tertiary) 80%, 
+    transparent);
+  border-radius: 16px 16px 0 0;
+}
+
+/* 四角装饰 */
+.footer-quote::after {
+  content: "✦";
+  position: absolute;
+  top: 12px;
+  left: 18px;
+  font-size: 10px;
+  color: var(--primary);
+  opacity: .25;
+}
+
+.quote-corner-right {
+  position: absolute;
+  top: 12px;
+  right: 18px;
+  font-size: 10px;
+  color: var(--secondary);
+  opacity: .25;
 }
 
 .quote-mark {
-  font-size: 32px;
+  font-size: 42px;
   color: var(--primary);
-  opacity: .3;
+  opacity: .2;
   line-height: 1;
-  margin-bottom: 2px;
-}
-.quote-text {
-  font-family: var(--font-serif);
-  font-size: 19px;
-  color: var(--ink);
-  line-height: 1.8;
-  letter-spacing: .5px;
-}
-.quote-author {
-  margin-top: 8px;
-  font-size: 13px;
-  color: var(--muted);
-  letter-spacing: 1px;
+  margin-bottom: 8px;
+  text-shadow: 2px 2px 4px rgba(0,0,0,.05);
 }
 
-/* 字数统计 */
+.quote-text {
+  font-family: var(--font-title);
+  font-size: 22px;
+  color: var(--ink);
+  line-height: 1.75;
+  letter-spacing: 2px;
+  position: relative;
+  padding: 0 10px;
+}
+
+/* 文字底部装饰线 */
+.quote-text::after {
+  content: "";
+  display: block;
+  width: 60px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  margin: 12px auto 0;
+  opacity: .3;
+}
+
+.quote-author {
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--muted);
+  letter-spacing: 1.5px;
+  font-family: var(--font-cute);
+}
+
+.quote-author::before {
+  content: "— ";
+  color: var(--primary);
+  opacity: .5;
+}
+
+/* 字数统计 - 徽章样式 */
 .word-count {
   text-align: center;
-  margin-top: 14px;
-  padding: 6px 0;
+  margin-top: 16px;
+  padding: 0;
+  z-index: 1;
+  position: relative;
+}
+
+.word-count-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 18px;
+  background: linear-gradient(135deg, var(--primary-light), rgba(107,184,164,.08));
+  border-radius: 999px;
   font-size: 12px;
   color: var(--muted);
   letter-spacing: 1px;
+  border: 1px solid rgba(0,0,0,.05);
+  box-shadow: 0 2px 6px rgba(0,0,0,.04);
+  transition: all 0.3s ease;
+}
+
+.word-count-badge:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0,0,0,.08);
+}
+
+.word-count-icon {
+  font-size: 14px;
+  opacity: .7;
+}
+
+/* 页脚信息 */
+.page-footer {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px dashed rgba(0,0,0,.08);
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  opacity: .6;
+  letter-spacing: 1px;
+  font-family: var(--font-cute);
+}
+
+.page-footer-heart {
+  color: var(--primary);
+  animation: heartbeat 1.5s ease-in-out infinite;
+  display: inline-block;
+}
+
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
 }
 
 /* ==================== 印章 ==================== */
@@ -527,14 +673,23 @@ aside {
     </svg>
   </div>
 
-  <!-- 名言 + 字数 -->
+<!-- 名言 + 字数 -->
   <div class="footer-area">
     <div class="footer-quote">
+      <span class="quote-corner-right">✦</span>
       <div class="quote-mark">❝</div>
       <div class="quote-text" id="quoteText"></div>
       <div class="quote-author" id="quoteAuthor"></div>
     </div>
-    <div class="word-count" id="wordCount"></div>
+    <div class="word-count">
+      <div class="word-count-badge">
+        <span class="word-count-icon">📊</span>
+        <span id="wordCountText"></span>
+      </div>
+    </div>
+    <div class="page-footer">
+      Crafted with <span class="page-footer-heart">♥</span> by Dream Template
+    </div>
   </div>
 
   <!-- 印章 -->
@@ -740,10 +895,10 @@ function initializePage() {
       }
     }
 
-    /* ===== 字数统计 ===== */
+/* ===== 字数统计 ===== */
     const rawText = contentEl.textContent || '';
     const charCount = rawText.replace(/\s/g, '').length;
-    document.getElementById('wordCount').textContent = `📝 全文共 ${charCount} 字`;
+    document.getElementById('wordCountText').textContent = `全文共 ${charCount} 字`;
 
   }, 100); // 延迟100ms确保内容已加载
 

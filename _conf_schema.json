@@ -101,10 +101,16 @@
         "default": 15,
         "hint": "每秒帧数，越高越流畅但文件越大。建议 10-20，推荐 15"
     },
-    "gif_scale": {
+"gif_scale": {
         "type": "int",
         "description": "GIF 渲染缩放倍数",
         "default": 2,
         "hint": "GIF 动画的缩放倍数。启用智能裁切后可保持 2 而不影响速度，建议 1-3"
+    },
+    "background_image": {
+        "type": "string",
+        "description": "自定义背景图片",
+        "default": "",
+        "hint": "相对插件目录的路径，如 images/bg.jpg。支持 jpg/png/webp/gif，留空使用默认背景"
     }
 }

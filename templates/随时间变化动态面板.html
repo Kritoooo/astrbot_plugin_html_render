@@ -1,0 +1,1282 @@
+<!--BUILTIN_PROMPT
+优先使用魔女特辑模板，在使用魔女特辑模板时需要注意：
+请务必严格按照以下格式输出：
+1. 开头：写一句符合情境的问候或哲学短句（如"晨光熹微，万物初醒"），并用 <kaitou> 和 </kaitou> 标签包裹。
+2. 正文：正常的回复内容。
+3. 结尾：写一句余韵悠长的结语或名言（如"且将新火试新茶，诗酒趁年华"），并用 <jiewei> 和 </jiewei> 标签包裹。
+
+重要：<pic> 和 <think> 标签会被系统自动移除，可以直接写在 <render> 块内部，无需拆分。始终使用一个完整的 <render> 块包裹所有内容。
+-->
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;600;700&family=IM+Fell+English:ital@0;1&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400;1,600&family=ZCOOL+KuaiLe&family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@300;400;500;700&family=Noto+Serif+SC:wght@300;400;700&display=swap" rel="stylesheet">
+
+<style>
+/* ============================================================
+   核心 CSS 变量 (由 JS 按时间段动态覆盖)
+   ============================================================ */
+:root {
+  --w: 520px; 
+  --primary: #b39ddb;
+  --primary-light: rgba(179,157,219,0.12);
+  --primary-glow: rgba(179,157,219,0.3);
+  --secondary: #9575cd;
+  --tertiary: #7e57c2;
+  --accent: #f9c96d;
+  --accent-dim: rgba(249,201,109,0.6);
+  --ink: #d8d0e8;
+  --ink-dim: #9a92a8;
+  --paper: #14101c;
+  --paper-mid: #1a1525;
+  --warm: #201828;
+  --header-grad-1: #1a1025;
+  --header-grad-2: #2b1b3d;
+  --header-grad-3: #3d2660;
+  --border-color: rgba(179,157,219,0.25);
+  --leak-color: rgba(140,100,220,0.07);
+
+  --font-display: 'Cinzel Decorative', 'Ma Shan Zheng', serif;
+  --font-title: 'Cinzel', 'Ma Shan Zheng', cursive;
+  --font-cute: 'ZCOOL KuaiLe', cursive;
+  --font-serif: 'Cormorant Garamond', 'Noto Serif SC', serif;
+  --font-fell: 'IM Fell English', 'Noto Serif SC', serif;
+  --font-body: 'Noto Serif SC', 'Noto Sans SC', "Microsoft YaHei", sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font-body);
+  color: var(--ink);
+  background: #07050c;
+  background-image:
+    radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    radial-gradient(rgba(255,255,255,0.015) 1px, transparent 1px);
+  background-size: 22px 22px, 35px 35px;
+  background-position: 0 0, 17px 17px;
+  padding: 40px;
+  display: inline-block;
+}
+
+/* 隐藏特殊标签 */
+kaitou, jiewei { display: none; }
+
+/* ============================================================
+   🎴 塔罗牌主容器 — 带复古金属包边
+   ============================================================ */
+.page-outer {
+  position: relative;
+  width: var(--w);
+  /* 塔罗牌外框：双层边框模拟金属包边 */
+  padding: 6px;
+  border-radius: 20px;
+  background: linear-gradient(135deg,
+    var(--accent) 0%,
+    var(--primary) 30%,
+    var(--secondary) 50%,
+    var(--primary) 70%,
+    var(--accent) 100%
+  );
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.8),
+    0 0 30px var(--primary-glow),
+    0 20px 60px rgba(0,0,0,0.9),
+    inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+
+/* 外框内层衬边 */
+.page-outer::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 17px;
+  border: 1px solid rgba(0,0,0,0.6);
+  pointer-events: none;
+  z-index: 200;
+}
+
+/* ---- 四角魔法阵角花 ---- */
+.corner {
+  position: absolute;
+  width: 56px;
+  height: 56px;
+  z-index: 300;
+  pointer-events: none;
+}
+.corner-tl { top: -4px; left: -4px; }
+.corner-tr { top: -4px; right: -4px; transform: scaleX(-1); }
+.corner-bl { bottom: -4px; left: -4px; transform: scaleY(-1); }
+.corner-br { bottom: -4px; right: -4px; transform: scale(-1,-1); }
+
+.page {
+  width: 100%;
+  background: var(--paper);
+  border-radius: 15px;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ============================================================
+   🌫️ 全局噪点 + 漏光特效 (截图质感核心)
+   ============================================================ */
+
+/* 羊皮纸噪点纹理 */
+.page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='250' height='250'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='250' height='250' filter='url(%23n)' opacity='.055'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 100;
+  mix-blend-mode: overlay;
+  border-radius: 15px;
+}
+
+/* 丁达尔光漏 — 右上角斜射光束 */
+.page::after {
+  content: "";
+  position: absolute;
+  top: -80px;
+  right: -60px;
+  width: 320px;
+  height: 420px;
+  background: conic-gradient(
+    from 210deg at 90% 0%,
+    transparent 0deg,
+    var(--leak-color) 15deg,
+    transparent 35deg
+  );
+  pointer-events: none;
+  z-index: 1;
+  border-radius: 50%;
+}
+
+/* 左下角补光 */
+.light-leak-bl {
+  position: absolute;
+  bottom: -40px;
+  left: -40px;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle at 20% 80%, var(--primary-light), transparent 70%);
+  pointer-events: none;
+  z-index: 1;
+  border-radius: 50%;
+}
+
+/* ============================================================
+   🌌 顶部星空 Header
+   ============================================================ */
+.header {
+  padding: 36px 32px 28px;
+  text-align: center;
+  position: relative;
+  background: linear-gradient(160deg,
+    var(--header-grad-1) 0%,
+    var(--header-grad-2) 45%,
+    var(--header-grad-3) 100%
+  );
+  overflow: hidden;
+  z-index: 2;
+}
+
+/* 星点底层 */
+.header::before {
+  content: "";
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background-image:
+    radial-gradient(1.5px 1.5px at 15px 25px,  rgba(255,255,255,0.85), transparent),
+    radial-gradient(2px   2px   at 90px 65px,  rgba(255,255,255,0.55), transparent),
+    radial-gradient(1px   1px   at 160px 18px, rgba(255,255,255,0.9),  transparent),
+    radial-gradient(2.5px 2.5px at 275px 48px, rgba(255,255,255,0.65), transparent),
+    radial-gradient(1.5px 1.5px at 395px 75px, rgba(255,255,255,0.7),  transparent),
+    radial-gradient(2px   2px   at 480px 28px, rgba(255,255,255,0.8),  transparent),
+    radial-gradient(1px   1px   at 50px  90px, rgba(255,255,255,0.45), transparent),
+    radial-gradient(1.5px 1.5px at 320px 12px, rgba(255,255,255,0.6),  transparent),
+    radial-gradient(1px   1px   at 440px 92px, rgba(255,255,255,0.5),  transparent),
+    /* 针对 800px 宽度新增的右侧星轨补全 */
+    radial-gradient(2px   2px   at 580px 45px, rgba(255,255,255,0.75), transparent),
+    radial-gradient(1.5px 1.5px at 660px 20px, rgba(255,255,255,0.85), transparent),
+    radial-gradient(1px   1px   at 690px 80px, rgba(255,255,255,0.5),  transparent);
+  pointer-events: none; z-index: 1;
+}
+
+/* 顶部发光弧 */
+.header-glow {
+  position: absolute;
+  top: -60px; left: 50%; transform: translateX(-50%);
+  width: 300px; height: 120px;
+  background: radial-gradient(ellipse, var(--primary-glow), transparent 70%);
+  pointer-events: none; z-index: 1;
+}
+
+/* 标题组 */
+.greeting {
+  font-family: var(--font-title);
+  font-size: 26px;
+  color: #fff;
+  text-shadow: 0 0 20px var(--primary), 0 0 40px var(--primary-glow), 2px 2px 6px rgba(0,0,0,0.9);
+  letter-spacing: 4px;
+  line-height: 1.6;
+  position: relative; z-index: 2;
+  /* 烫金渐变效果 */
+  background: linear-gradient(135deg, #fff 0%, var(--accent) 40%, #fff 60%, var(--primary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 12px var(--primary-glow));
+}
+
+.greeting-sub {
+  font-family: var(--font-fell);
+  font-size: 12px;
+  color: var(--accent-dim);
+  letter-spacing: 3px;
+  margin-top: 5px;
+  position: relative; z-index: 2;
+  font-style: italic;
+}
+
+/* 月相 + 日期徽章 */
+.date-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
+  position: relative; z-index: 2;
+}
+
+.moon-badge {
+  font-size: 22px;
+  filter: drop-shadow(0 0 6px var(--primary-glow));
+}
+
+.date-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 16px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: #d0c8e0;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid var(--border-color);
+  font-family: var(--font-fell);
+  letter-spacing: 1.5px;
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.5), 0 0 8px var(--primary-glow);
+}
+
+.moon-phase-name {
+  color: var(--accent);
+  font-family: var(--font-cute);
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+/* 彩虹分割线 */
+.rainbow-bar {
+  height: 2px;
+  background: linear-gradient(90deg,
+    transparent,
+    var(--tertiary) 15%,
+    var(--primary) 35%,
+    var(--accent) 50%,
+    var(--primary) 65%,
+    var(--secondary) 85%,
+    transparent
+  );
+  box-shadow: 0 0 16px var(--primary-glow), 0 0 4px var(--accent-dim);
+  position: relative; z-index: 3;
+}
+
+/* 波浪分隔 */
+.wave-sep { line-height: 0; overflow: hidden; position: relative; z-index: 1; }
+.wave-sep svg { display: block; width: 100%; }
+
+/* ============================================================
+   📜 正文区域
+   ============================================================ */
+.body-area {
+  padding: 26px 34px 18px;
+  position: relative; z-index: 2;
+}
+
+.content {
+  font-size: 15px;
+  line-height: 2.15;
+  width: 100%;
+}
+.content, .content * {
+  max-width: 100% !important;
+  word-wrap: break-word !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  white-space: normal !important;
+  box-sizing: border-box !important;
+}
+
+/* 首字下沉 — 烫金版 */
+.content .drop-cap-p::first-letter {
+  float: left;
+  font-family: var(--font-display);
+  font-size: 3.8em;
+  line-height: .82;
+  padding: 4px 10px 0 0;
+  background: linear-gradient(135deg, var(--accent) 0%, #fff 40%, var(--primary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(2px 2px 0px var(--warm)) drop-shadow(0 0 8px var(--primary-glow));
+}
+
+.content p {
+  margin-bottom: .95em;
+  text-indent: 2em;
+  color: var(--ink);
+  font-weight: 300;
+}
+.content p:last-child { margin-bottom: 0; }
+
+/* ============================================================
+   🔯 神秘学标题系统 — 烫金/烫银渐变
+   ============================================================ */
+.content h1, .content h2, .content h3, .content h4 {
+  text-indent: 0;
+  margin: 1.4em 0 .7em;
+  line-height: 1.5;
+}
+
+/* H1 — 烫金大标题 */
+.content h1 {
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: 3px;
+  text-align: center;
+  background: linear-gradient(135deg, var(--accent) 0%, #fff8e8 35%, var(--accent) 60%, #c8a84b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 10px rgba(249,201,109,0.4));
+  padding: 6px 0;
+  position: relative;
+  display: block;
+}
+.content h1::before, .content h1::after {
+  content: "✦ ─────── ✦";
+  display: block;
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--accent);
+  -webkit-text-fill-color: var(--accent);
+  opacity: 0.5;
+  filter: none;
+  margin: 4px 0;
+}
+
+/* H2 — 烫银副标题 */
+.content h2 {
+  font-family: var(--font-title);
+  font-size: 19px;
+  letter-spacing: 2px;
+  background: linear-gradient(90deg, #fff 0%, var(--primary) 40%, #fff 80%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 8px var(--primary-glow));
+  padding-left: 20px;
+  border-left: 3px solid var(--primary);
+  display: block;
+  box-shadow: -8px 0 16px -8px var(--primary-glow);
+}
+.content h2::before {
+  content: "☾ ";
+  color: var(--primary);
+  -webkit-text-fill-color: var(--primary);
+  filter: drop-shadow(0 0 6px var(--primary));
+}
+
+/* H3 — 月光小标 */
+.content h3 {
+  font-family: var(--font-title);
+  font-size: 16.5px;
+  color: var(--accent);
+  -webkit-text-fill-color: var(--accent);
+  padding-left: 14px;
+  border-left: 2px solid var(--accent-dim);
+  background: linear-gradient(90deg, rgba(249,201,109,0.08), transparent);
+  letter-spacing: 1px;
+  display: block;
+}
+.content h3::before { content: "✦ "; opacity: 0.7; }
+
+.content h4 {
+  font-family: var(--font-fell);
+  font-size: 15px;
+  color: var(--ink-dim);
+  font-style: italic;
+  letter-spacing: 1px;
+  display: block;
+}
+
+/* ============================================================
+   🪄 占星学语义标签 — 重构版
+   ============================================================ */
+
+/* 引用标签 */
+q {
+  display: inline;
+  quotes: none;
+  color: #f0ebfa;
+  font-family: var(--font-fell);
+  font-style: italic;
+  font-weight: 400;
+  background: linear-gradient(135deg, rgba(0,0,0,0.3), var(--primary-light));
+  padding: 3px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  border-left: 2px solid var(--primary);
+  text-shadow: 0 0 6px var(--primary-glow);
+}
+q::before { content: "『"; color: var(--accent); font-style: normal; }
+q::after  { content: "』"; color: var(--accent); font-style: normal; }
+
+/* inner 行内强调 */
+inner {
+  display: inline;
+  color: var(--accent);
+  font-family: var(--font-fell);
+  font-style: italic;
+  background: rgba(249,201,109,0.06);
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: .93em;
+  border: 1px solid rgba(249,201,109,0.2);
+}
+inner::before { content: "✧ "; font-style: normal; opacity: 0.7; }
+
+/* act 行动标记 */
+act {
+  display: inline;
+  color: var(--primary);
+  font-weight: 600;
+  font-family: var(--font-title);
+  text-decoration: underline;
+  text-decoration-color: var(--secondary);
+  text-decoration-style: wavy;
+  text-underline-offset: 4px;
+  padding: 0 3px;
+  letter-spacing: 0.5px;
+}
+
+/* scene 场景块 — 星轨版 */
+scene {
+  display: block;
+  margin: 1.8em 0;
+  padding: 22px 22px 18px;
+  text-indent: 0;
+  font-family: var(--font-fell);
+  font-style: italic;
+  font-size: 15px;
+  color: var(--ink-dim);
+  background: rgba(0,0,0,0.35);
+  backdrop-filter: blur(4px);
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  position: relative;
+  box-shadow: 
+    inset 0 0 24px rgba(0,0,0,0.4),
+    0 4px 20px rgba(0,0,0,0.4);
+  line-height: 2;
+}
+/* 上方星轨线 */
+scene::before {
+  content: "✦ ─── 场 · 景 ─── ✦";
+  display: block;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: var(--primary);
+  font-style: normal;
+  font-family: var(--font-cute);
+  margin-bottom: 12px;
+  opacity: 0.75;
+}
+/* 下方星轨线 */
+scene::after {
+  content: "✦ ─────────────── ✦";
+  display: block;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: var(--primary);
+  margin-top: 12px;
+  opacity: 0.5;
+}
+
+/* aside 旁白 */
+aside {
+  display: block;
+  margin: 1.4em auto;
+  padding: 12px 20px;
+  text-indent: 0;
+  text-align: center;
+  font-family: var(--font-fell);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--accent-dim);
+  background: rgba(0,0,0,0.2);
+  border-radius: 4px;
+  width: fit-content;
+  max-width: 90%;
+  border: 1px dashed rgba(249,201,109,0.3);
+  transform: rotate(-.4deg);
+  letter-spacing: 0.5px;
+}
+
+/* ============================================================
+   📋 基础 HTML 元素 — 神秘学升级版
+   ============================================================ */
+
+/* blockquote — 羽毛笔竖线版 */
+.content blockquote {
+  text-indent: 0;
+  margin: 1.4em 0;
+  padding: 16px 20px;
+  background: rgba(0,0,0,0.25);
+  border-left: 0;
+  border-radius: 0 10px 10px 0;
+  color: var(--ink-dim);
+  font-family: var(--font-fell);
+  font-style: italic;
+  font-size: 15px;
+  position: relative;
+}
+.content blockquote::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--accent), var(--primary), var(--secondary));
+  border-radius: 4px;
+  box-shadow: 0 0 8px var(--primary-glow);
+}
+/* 羽毛笔图标 */
+.content blockquote::after {
+  content: "✒";
+  position: absolute;
+  left: -8px; top: -12px;
+  font-size: 18px;
+  color: var(--accent);
+  filter: drop-shadow(0 0 4px var(--accent-dim));
+}
+
+/* 列表 — 占星符文 */
+.content ul, .content ol {
+  text-indent: 0;
+  margin: 1.1em 0 1.1em 1.2em;
+  padding-left: .5em;
+}
+.content li { margin-bottom: .5em; }
+.content li::marker { color: transparent; }
+.content ul > li {
+  list-style: none;
+  padding-left: 1.4em;
+  position: relative;
+}
+/* 占星符号前缀，由 JS 随机分配 */
+.content ul > li::before {
+  position: absolute;
+  left: 0;
+  color: var(--primary);
+  font-size: 14px;
+  text-shadow: 0 0 5px var(--primary-glow);
+}
+.content ol li::marker {
+  color: var(--accent);
+  font-weight: 700;
+  font-family: var(--font-title);
+}
+
+.content hr {
+  border: none; height: 1px; margin: 1.8em 2em;
+  background: linear-gradient(90deg, transparent, var(--primary), var(--accent), var(--primary), transparent);
+  opacity: .4;
+  box-shadow: 0 0 10px var(--primary-glow);
+}
+
+/* code */
+.content code {
+  background: rgba(0,0,0,0.45);
+  color: var(--accent);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: .87em;
+  border: 1px solid var(--border-color);
+  white-space: pre-wrap !important;
+  word-break: break-all !important;
+}
+.content pre {
+  background: #07050d;
+  color: #ccc0e0;
+  padding: 16px 18px;
+  border-radius: 10px;
+  margin: 1.2em 0;
+  text-indent: 0;
+  border-left: 3px solid var(--tertiary);
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 4px 12px rgba(0,0,0,0.5);
+  white-space: pre-wrap !important; word-break: break-all !important;
+  position: relative;
+}
+.content pre::before {
+  content: "✦ INCANTATION";
+  position: absolute; top: 8px; right: 14px;
+  font-size: 10px; font-family: var(--font-title);
+  color: var(--primary); opacity: 0.4; letter-spacing: 2px;
+}
+.content pre code { background: none; border: none; padding: 0; color: inherit; }
+
+/* table */
+.content table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  margin: 1.4em 0; font-size: .91em; border-radius: 10px;
+  overflow: hidden; table-layout: fixed;
+  box-shadow: 0 4px 20px rgba(0,0,0,.5);
+  border: 1px solid var(--border-color);
+}
+.content th, .content td {
+  padding: 11px 14px; text-align: left; text-indent: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  word-break: break-word; overflow-wrap: anywhere;
+}
+.content th {
+  background: linear-gradient(135deg, var(--tertiary), var(--secondary));
+  color: #fff; font-weight: 700;
+  font-family: var(--font-title); letter-spacing: 1px;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+.content tr:nth-child(even) td { background: rgba(0,0,0,0.18); }
+.content tr:hover td { background: var(--primary-light); transition: background 0.2s; }
+
+/* details/summary */
+.content details {
+  margin: 1.4em 0; border: 1px solid var(--border-color);
+  border-radius: 10px; overflow: hidden; background: var(--paper-mid);
+}
+.content summary {
+  padding: 12px 16px; cursor: pointer; font-weight: 600;
+  background: rgba(0,0,0,0.25); text-indent: 0;
+  display: flex; gap: 10px; align-items: center;
+  color: var(--primary); font-family: var(--font-title);
+  letter-spacing: 1px; font-size: 14.5px;
+}
+.content summary::before { content: "🔮"; flex-shrink: 0; }
+.content details[open] summary { border-bottom: 1px dashed var(--border-color); }
+.content details[open] summary::before { content: "✨"; }
+.content details > *:not(summary) { padding: 14px 16px; }
+.content details p { text-indent: 0; margin-bottom: .5em; }
+
+/* strong / em */
+.content strong {
+  font-weight: 700; letter-spacing: 0.3px;
+  background: linear-gradient(90deg, #fff 0%, var(--primary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 4px var(--primary-glow));
+}
+.content em {
+  color: var(--accent);
+  font-family: var(--font-fell);
+  font-style: italic;
+}
+.content img {
+  max-width: 100%; height: auto; border-radius: 10px; margin: .6em 0;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+  border: 1px solid var(--border-color);
+}
+
+/* ============================================================
+   ⭐ 结语区域 — 星象预言
+   ============================================================ */
+.footer-area {
+  padding: 4px 34px 32px;
+  position: relative; z-index: 2;
+}
+
+.footer-quote {
+  padding: 28px 26px 22px;
+  text-align: center;
+  background: linear-gradient(180deg, var(--paper) 0%, var(--warm) 100%);
+  border-radius: 14px;
+  position: relative;
+  box-shadow:
+    0 8px 28px rgba(0,0,0,.7),
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    inset 0 0 30px rgba(0,0,0,0.3);
+  border: 1px solid var(--border-color);
+}
+
+/* 顶部渐变装饰线 */
+.footer-quote::before {
+  content: "";
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg,
+    transparent,
+    var(--secondary) 15%,
+    var(--primary) 35%,
+    var(--accent) 50%,
+    var(--primary) 65%,
+    var(--secondary) 85%,
+    transparent
+  );
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 0 12px var(--primary-glow);
+}
+
+/* 四角星 */
+.corner-star {
+  position: absolute; font-size: 9px; opacity: 0.65;
+}
+.cs-tl { top: 12px; left: 18px; color: var(--primary); text-shadow: 0 0 6px var(--primary); }
+.cs-tr { top: 12px; right: 18px; color: var(--accent); text-shadow: 0 0 6px var(--accent); }
+.cs-bl { bottom: 12px; left: 18px; color: var(--secondary); text-shadow: 0 0 6px var(--secondary); }
+.cs-br { bottom: 12px; right: 18px; color: var(--primary); text-shadow: 0 0 6px var(--primary); }
+
+.quote-mark {
+  font-family: var(--font-display);
+  font-size: 40px;
+  background: linear-gradient(135deg, var(--accent), var(--primary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+  margin-bottom: 10px;
+  filter: drop-shadow(0 0 8px var(--primary-glow));
+}
+
+.quote-text {
+  font-family: var(--font-serif);
+  font-size: 17.5px;
+  font-weight: 400;
+  color: var(--ink);
+  line-height: 1.9;
+  letter-spacing: 2.5px;
+  position: relative;
+  padding: 0 12px;
+}
+
+.quote-text::after {
+  content: "";
+  display: block;
+  width: 60px; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  margin: 16px auto 0;
+  box-shadow: 0 0 6px var(--primary-glow);
+}
+
+.quote-author {
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--ink-dim);
+  letter-spacing: 2px;
+  font-family: var(--font-fell);
+  font-style: italic;
+  text-align: right;
+  padding-right: 12px;
+}
+.quote-author::before { content: "— "; color: var(--primary); }
+
+/* 字数统计 */
+.word-count {
+  text-align: center;
+  margin-top: 18px;
+  position: relative; z-index: 1;
+}
+.word-count-badge {
+  display: inline-flex;
+  align-items: center; gap: 7px;
+  padding: 7px 18px;
+  background: rgba(0,0,0,0.45);
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: var(--ink-dim);
+  letter-spacing: 1.5px;
+  border: 1px solid rgba(255,255,255,.07);
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.8), 0 0 8px rgba(0,0,0,0.4);
+  font-family: var(--font-fell);
+  font-style: italic;
+}
+.word-count-icon { font-size: 15px; filter: drop-shadow(0 0 3px var(--primary-glow)); }
+
+/* 月相信息行 */
+.moon-info-row {
+  text-align: center;
+  margin-top: 10px;
+  font-family: var(--font-cute);
+  font-size: 11px;
+  color: var(--ink-dim);
+  opacity: 0.65;
+  letter-spacing: 1px;
+}
+
+/* 页脚落款 */
+.page-footer {
+  margin-top: 16px; padding-top: 14px;
+  border-top: 1px dashed rgba(255,255,255,.07);
+  text-align: center;
+  font-size: 10.5px;
+  color: var(--ink-dim);
+  opacity: .45;
+  letter-spacing: 1.5px;
+  font-family: var(--font-fell);
+  font-style: italic;
+}
+.page-footer-heart {
+  color: var(--primary);
+  text-shadow: 0 0 4px var(--primary);
+}
+
+/* ============================================================
+   🔏 秘术印章
+   ============================================================ */
+.stamp-seal {
+  position: absolute;
+  bottom: 90px; right: 28px;
+  width: 52px; height: 52px;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  display: grid; place-items: center;
+  transform: rotate(12deg);
+  opacity: .35;
+  pointer-events: none; z-index: 50;
+  box-shadow: 0 0 16px var(--primary-glow), inset 0 0 12px var(--primary-light);
+}
+.stamp-seal::before {
+  content: "";
+  position: absolute; inset: 3px;
+  border: 1px solid var(--primary);
+  border-radius: 50%;
+  opacity: 0.5;
+}
+.stamp-seal-text {
+  font-family: var(--font-title);
+  font-size: 22px;
+  color: var(--primary);
+  text-shadow: 0 0 6px var(--primary);
+}
+
+/* ============================================================
+   ✦ 散落装饰
+   ============================================================ */
+.deco-item {
+  position: absolute; pointer-events: none; z-index: 50; line-height: 1;
+  filter: drop-shadow(0 0 3px rgba(0,0,0,0.9));
+}
+</style>
+</head>
+<body>
+
+<!-- 外框（塔罗牌包边） -->
+<div class="page-outer">
+
+  <!-- 四角魔法阵角花 SVG -->
+  <div class="corner corner-tl">
+    <svg viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="glow-tl">
+          <feGaussianBlur stdDeviation="1.5" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <g filter="url(#glow-tl)" fill="none" stroke-width="1">
+        <!-- 荆棘藤蔓角花 -->
+        <path d="M2,2 L22,2 L22,6 L6,6 L6,22 L2,22 Z" stroke="var(--accent)" stroke-opacity="0.7"/>
+        <path d="M2,2 L18,2 L18,5 L5,5 L5,18 L2,18 Z" stroke="var(--primary)" stroke-opacity="0.5"/>
+        <!-- 法阵圆弧 -->
+        <path d="M8,2 A6,6 0 0,1 2,8" stroke="var(--accent)" stroke-opacity="0.6"/>
+        <!-- 荆棘刺 -->
+        <line x1="10" y1="2" x2="12" y2="5" stroke="var(--primary)" stroke-opacity="0.6"/>
+        <line x1="16" y1="2" x2="18" y2="5" stroke="var(--primary)" stroke-opacity="0.6"/>
+        <line x1="2" y1="10" x2="5" y2="12" stroke="var(--primary)" stroke-opacity="0.6"/>
+        <line x1="2" y1="16" x2="5" y2="18" stroke="var(--primary)" stroke-opacity="0.6"/>
+        <!-- 中心小星 -->
+        <text x="2" y="14" font-size="10" fill="var(--accent)" fill-opacity="0.8" font-family="serif">✦</text>
+      </g>
+    </svg>
+  </div>
+  <div class="corner corner-tr">
+    <svg viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
+      <g fill="none" stroke-width="1">
+        <path d="M2,2 L22,2 L22,6 L6,6 L6,22 L2,22 Z" stroke="var(--accent)" stroke-opacity="0.7"/>
+        <path d="M2,2 L18,2 L18,5 L5,5 L5,18 L2,18 Z" stroke="var(--primary)" stroke-opacity="0.5"/>
+        <path d="M8,2 A6,6 0 0,1 2,8" stroke="var(--accent)" stroke-opacity="0.6"/>
+        <line x1="10" y1="2" x2="12" y2="5" stroke="var(--primary)" stroke-opacity="0.6"/>
+        <line x1="16" y1="2" x2="18" y2="5" stroke="var(--primary)" stroke-opacity="0.6"/>
+        <line x1="2" y1="10" x2="5" y2="12" stroke="var(--primary)" stroke-opacity="0.6"/>
+        <line x1="2" y1="16" x2="5" y2="18" stroke="var(--primary)" stroke-opacity="0.6"/>
+        <text x="2" y="14" font-size="10" fill="var(--accent)" fill-opacity="0.8" font-family="serif">✦</text>
+      </g>
+    </svg>
+  </div>
+  <div class="corner corner-bl">
+    <svg viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
+      <g fill="none" stroke-width="1">
+        <path d="M2,2 L22,2 L22,6 L6,6 L6,22 L2,22 Z" stroke="var(--accent)" stroke-opacity="0.7"/>
+        <path d="M2,2 L18,2 L18,5 L5,5 L5,18 L2,18 Z" stroke="var(--primary)" stroke-opacity="0.5"/>
+        <path d="M8,2 A6,6 0 0,1 2,8" stroke="var(--accent)" stroke-opacity="0.6"/>
+        <line x1="10" y1="2" x2="12" y2="5" stroke="var(--primary)" stroke-opacity="0.6"/>
+        <line x1="16" y1="2" x2="18" y2="5" stroke="var(--primary)" stroke-opacity="0.6"/>
+        <line x1="2" y1="10" x2="5" y2="12" stroke="var(--primary)" stroke-opacity="0.6"/>
+        <line x1="2" y1="16" x2="5" y2="18" stroke="var(--primary)" stroke-opacity="0.6"/>
+        <text x="2" y="14" font-size="10" fill="var(--accent)" fill-opacity="0.8" font-family="serif">✦</text>
+      </g>
+    </svg>
+  </div>
+  <div class="corner corner-br">
+    <svg viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
+      <g fill="none" stroke-width="1">
+        <path d="M2,2 L22,2 L22,6 L6,6 L6,22 L2,22 Z" stroke="var(--accent)" stroke-opacity="0.7"/>
+        <path d="M2,2 L18,2 L18,5 L5,5 L5,18 L2,18 Z" stroke="var(--primary)" stroke-opacity="0.5"/>
+        <path d="M8,2 A6,6 0 0,1 2,8" stroke="var(--accent)" stroke-opacity="0.6"/>
+        <line x1="10" y1="2" x2="12" y2="5" stroke="var(--primary)" stroke-opacity="0.6"/>
+        <line x1="16" y1="2" x2="18" y2="5" stroke="var(--primary)" stroke-opacity="0.6"/>
+        <line x1="2" y1="10" x2="5" y2="12" stroke="var(--primary)" stroke-opacity="0.6"/>
+        <line x1="2" y1="16" x2="5" y2="18" stroke="var(--primary)" stroke-opacity="0.6"/>
+        <text x="2" y="14" font-size="10" fill="var(--accent)" fill-opacity="0.8" font-family="serif">✦</text>
+      </g>
+    </svg>
+  </div>
+
+  <!-- 主卡片内容 -->
+  <div class="page">
+    <div class="light-leak-bl"></div>
+
+    <!-- ===== 顶部 Header ===== -->
+    <div class="header">
+      <div class="header-glow"></div>
+      <div class="greeting" id="greeting">魔女起笔，星河在望</div>
+      <div class="greeting-sub" id="greetingSub">GRIMOIRE OF THE ETERNAL NIGHT ✦</div>
+      <div class="date-row">
+        <span class="moon-badge" id="moonEmoji">🌕</span>
+        <div class="date-badge">
+          <span id="dateBadge">载入中…</span>
+          <span class="moon-phase-name" id="moonPhaseName"></span>
+        </div>
+      </div>
+    </div>
+    <div class="rainbow-bar"></div>
+
+    <!-- 波浪 -->
+    <div class="wave-sep">
+      <svg viewBox="0 0 560 20" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M0,14 Q70,0 140,14 T280,14 T420,14 T560,14 L560,20 L0,20 Z" style="fill: var(--paper)"/>
+      </svg>
+    </div>
+
+    <!-- ===== 正文 ===== -->
+    <div class="body-area">
+      <div class="content" id="contentArea">{{content}}</div>
+    </div>
+
+    <!-- 底部波浪 -->
+    <div class="wave-sep" style="transform:scaleY(-1); margin-top:-1px;">
+      <svg viewBox="0 0 560 16" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M0,10 Q70,0 140,10 T280,10 T420,10 T560,10 L560,16 L0,16 Z" style="fill: var(--warm);"/>
+      </svg>
+    </div>
+
+    <!-- ===== 结语 ===== -->
+    <div class="footer-area">
+      <div class="footer-quote">
+        <span class="corner-star cs-tl">✦</span>
+        <span class="corner-star cs-tr">✧</span>
+        <span class="corner-star cs-bl">✧</span>
+        <span class="corner-star cs-br">✦</span>
+        <div class="quote-mark">❝</div>
+        <div class="quote-text" id="quoteText"></div>
+        <div class="quote-author" id="quoteAuthor"></div>
+      </div>
+
+      <div class="word-count">
+        <div class="word-count-badge">
+          <span class="word-count-icon">🔮</span>
+          <span id="wordCountText">灵力消耗中…</span>
+        </div>
+      </div>
+      <div class="moon-info-row" id="moonInfoRow"></div>
+      <div class="page-footer">
+        Scribed in shadow &nbsp;<span class="page-footer-heart">✦</span>&nbsp; Arcane Grimoire v2
+      </div>
+    </div>
+
+    <!-- 印章 -->
+    <div class="stamp-seal">
+      <span class="stamp-seal-text" id="stampText">咒</span>
+    </div>
+
+    <!-- 散落装饰容器 -->
+    <div id="decoContainer"></div>
+  </div><!-- .page -->
+</div><!-- .page-outer -->
+
+<script>
+/* ============================================================
+   🌙 月相算法 — 基于朔望周期 (约29.53059天)
+   ============================================================ */
+function getMoonPhase(date) {
+  // 已知朔月 (新月) 参考日期: 2000-01-06
+  const known = new Date(2000, 0, 6, 18, 14, 0);
+  const cycle = 29.53059;
+  const diffMs = date - known;
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+  const phase = ((diffDays % cycle) + cycle) % cycle; // 0~29.53
+
+  // 8个主要月相
+  const phases = [
+    { name: '朔月 · 新月', emoji: '🌑', range: [0,   1.85] },
+    { name: '娥眉月',       emoji: '🌒', range: [1.85, 7.38] },
+    { name: '上弦月',       emoji: '🌓', range: [7.38, 11.07] },
+    { name: '盈凸月',       emoji: '🌔', range: [11.07, 14.77] },
+    { name: '满月 · 望',   emoji: '🌕', range: [14.77, 18.46] },
+    { name: '亏凸月',       emoji: '🌖', range: [18.46, 22.15] },
+    { name: '下弦月',       emoji: '🌗', range: [22.15, 25.84] },
+    { name: '残月',         emoji: '🌘', range: [25.84, 29.53] },
+  ];
+  for (const p of phases) {
+    if (phase >= p.range[0] && phase < p.range[1]) return p;
+  }
+  return phases[0];
+}
+
+/* ============================================================
+   🎨 时间段配色方案
+   ============================================================ */
+function getTimeTheme(hour) {
+  if (hour >= 5 && hour < 9) {
+    return {
+      primary:'#b39ddb', secondary:'#9575cd', tertiary:'#7e57c2', accent:'#ffcc80',
+      g1:'#261a35', g2:'#311b4a', g3:'#4a2e70', paper:'#191622', warm:'#221c2e',
+      primaryLight:'rgba(179,157,219,0.12)', primaryGlow:'rgba(179,157,219,0.28)',
+      ink:'#ddd6ea', inkDim:'#9a8faa', border:'rgba(179,157,219,0.22)', leak:'rgba(140,100,220,0.07)',
+      greetings:[
+        {text:'晨星初启，魔力苏醒', sub:'MORNING STAR AWAKENS · FIRST LIGHT'},
+        {text:'破晓之光，破除迷雾', sub:'THE VEIL LIFTS WITH DAWN'}
+      ]
+    };
+  } else if (hour >= 9 && hour < 14) {
+    return {
+      primary:'#80cbc4', secondary:'#4db6ac', tertiary:'#26a69a', accent:'#ffe082',
+      g1:'#0f2420', g2:'#153831', g3:'#1e5248', paper:'#121917', warm:'#1a2522',
+      primaryLight:'rgba(128,203,196,0.12)', primaryGlow:'rgba(128,203,196,0.28)',
+      ink:'#d9ebe9', inkDim:'#8aa5a2', border:'rgba(128,203,196,0.22)', leak:'rgba(64,180,150,0.07)',
+      greetings:[
+        {text:'白昼之巅，魔力最盛', sub:'ZENITH OF ARCANE POWER'},
+        {text:'翠林秘境，魔法流淌', sub:'THE FOREST SANCTUARY SPEAKS'}
+      ]
+    };
+  } else if (hour >= 14 && hour < 19) {
+    return {
+      primary:'#ef9a9a', secondary:'#e57373', tertiary:'#ef5350', accent:'#ffb74d',
+      g1:'#361616', g2:'#4a1c1c', g3:'#6e2424', paper:'#201616', warm:'#2b1d1d',
+      primaryLight:'rgba(239,154,154,0.12)', primaryGlow:'rgba(239,154,154,0.28)',
+      ink:'#ecdcdc', inkDim:'#a88a8a', border:'rgba(239,154,154,0.22)', leak:'rgba(220,80,80,0.07)',
+      greetings:[
+        {text:'斜阳微曛，咒语轻颂', sub:'GOLDEN HOUR · SPELLS IN AMBER LIGHT'},
+        {text:'烈焰暮色，余烬炽魂', sub:'THE CRIMSON DUSK DESCENDS'}
+      ]
+    };
+  } else {
+    return {
+      primary:'#90caf9', secondary:'#64b5f6', tertiary:'#42a5f5', accent:'#ce93d8',
+      g1:'#0d1b2a', g2:'#112845', g3:'#1a4270', paper:'#11151c', warm:'#171e28',
+      primaryLight:'rgba(144,202,249,0.12)', primaryGlow:'rgba(144,202,249,0.28)',
+      ink:'#d4e3ef', inkDim:'#8090a8', border:'rgba(144,202,249,0.22)', leak:'rgba(60,120,220,0.08)',
+      greetings:[
+        {text:'夜幕降临，群星闪耀', sub:'STARS ARE ALIGNING IN THE VOID'},
+        {text:'月华如水，梦境穿梭', sub:'MOONLIGHT WEAVES THROUGH DREAMS'},
+        {text:'聆听来自深渊的低语', sub:'WHISPERS FROM THE ABYSS'}
+      ]
+    };
+  }
+}
+
+/* ============================================================
+   🎴 初始化
+   ============================================================ */
+window.addEventListener('DOMContentLoaded', function () {
+  const now = new Date();
+  const hour = now.getHours();
+  const theme = getTimeTheme(hour);
+  const moon = getMoonPhase(now);
+
+  // 应用 CSS 变量
+  const r = document.documentElement.style;
+  r.setProperty('--primary',       theme.primary);
+  r.setProperty('--secondary',     theme.secondary);
+  r.setProperty('--tertiary',      theme.tertiary);
+  r.setProperty('--accent',        theme.accent);
+  r.setProperty('--accent-dim',    theme.accent.replace(')', ', 0.6)').replace('rgb', 'rgba'));
+  r.setProperty('--header-grad-1', theme.g1);
+  r.setProperty('--header-grad-2', theme.g2);
+  r.setProperty('--header-grad-3', theme.g3);
+  r.setProperty('--paper',         theme.paper);
+  r.setProperty('--paper-mid',     theme.warm);
+  r.setProperty('--warm',          theme.warm);
+  r.setProperty('--primary-light', theme.primaryLight);
+  r.setProperty('--primary-glow',  theme.primaryGlow);
+  r.setProperty('--ink',           theme.ink);
+  r.setProperty('--ink-dim',       theme.inkDim);
+  r.setProperty('--border-color',  theme.border);
+  r.setProperty('--leak-color',    theme.leak);
+
+  // 月相
+  document.getElementById('moonEmoji').textContent = moon.emoji;
+  document.getElementById('moonPhaseName').textContent = moon.name;
+
+  // 日期
+  const weekNames = ['日','一','二','三','四','五','六'];
+  const dateStr = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 · 星期${weekNames[now.getDay()]}`;
+  document.getElementById('dateBadge').textContent = dateStr;
+  document.getElementById('moonInfoRow').textContent =
+    `${moon.emoji} 今日月相：${moon.name} · 观星吉时`;
+
+  // 问候语
+  const g = theme.greetings[Math.floor(Math.random() * theme.greetings.length)];
+
+  // 魔法箴言
+  const quotes = [
+    {text:'在繁星之下的每一次相遇，皆是宇宙写就的咒语。', author:'魔女的日记'},
+    {text:'不要惧怕黑暗，因为那是星光诞生的摇篮。', author:'占星师的忠告'},
+    {text:'即便扫帚折断，只要心中有风，依然可以触碰月亮。', author:'飞行课箴言'},
+    {text:'最强大的魔法不是摧毁，而是治愈与守护。', author:'大魔导书'},
+    {text:'把星光装进玻璃瓶，在迷茫时它会为你照亮前路。', author:'魔法杂货铺'},
+    {text:'时间是最深奥的魔法，它不动声色地改变着一切。', author:'时空守护者'},
+    {text:'黑猫的尾巴划过夜空，为你扫去所有的噩梦。', author:'梦境游侠'},
+    {text:'每一个勇敢的决定，都是打破规则的咒语。', author:'叛逆的魔法师'},
+    {text:'当我们仰望同一片星空，魔力便在无形中交汇。', author:'星空结社'},
+    {text:'古籍不言，却以沉默收藏了所有秘密。', author:'封存的禁书'},
+    {text:'月光不问赶路人，只是静静地铺开银色的地毯。', author:'旅途物语'},
+  ];
+  const q = quotes[Math.floor(Math.random() * quotes.length)];
+
+  // 印章
+  const stampChars = ['幻','秘','星','咒','月','灵','魂','卜','玄','术'];
+  document.getElementById('stampText').textContent =
+    stampChars[Math.floor(Math.random() * stampChars.length)];
+
+  /* ===== 解析 AI 生成内容中的 kaitou / jiewei ===== */
+  setTimeout(function () {
+    const contentEl = document.getElementById('contentArea');
+    const aiGreeting = contentEl.querySelector('kaitou');
+    const aiEnding   = contentEl.querySelector('jiewei');
+
+    if (aiGreeting && aiGreeting.textContent.trim()) {
+      document.getElementById('greeting').textContent = aiGreeting.textContent.trim();
+      document.getElementById('greetingSub').textContent = '';
+    } else {
+      document.getElementById('greeting').textContent  = g.text;
+      document.getElementById('greetingSub').textContent = g.sub;
+    }
+
+    if (aiEnding && aiEnding.textContent.trim()) {
+      document.getElementById('quoteText').textContent = aiEnding.textContent.trim();
+      document.getElementById('quoteAuthor').textContent = '';
+    } else {
+      document.getElementById('quoteText').textContent   = q.text;
+      document.getElementById('quoteAuthor').textContent = q.author;
+    }
+
+    /* 首字下沉 */
+    const allP = contentEl.querySelectorAll('p');
+    for (let i = 0; i < allP.length; i++) {
+      if (allP[i].textContent.trim().length > 0) {
+        allP[i].classList.add('drop-cap-p');
+        break;
+      }
+    }
+
+    /* 占星符文 — 给每个 ul > li 分配随机星象符号 */
+    const astroSymbols = ['☿','♀','♂','♃','♄','♅','♆','☽','☉','✦','✧','⚝'];
+    contentEl.querySelectorAll('ul > li').forEach(li => {
+      const sym = astroSymbols[Math.floor(Math.random() * astroSymbols.length)];
+      li.style.setProperty('--li-sym', `"${sym}"`);
+      li.style.setProperty('content', `"${sym}"`);
+      // 用伪元素通过 CSS var 注入
+    });
+    // 统一注入 ::before
+    const styleTag = document.createElement('style');
+    styleTag.textContent = `
+      .content ul > li::before {
+        content: var(--li-sym, "✦");
+        position: absolute; left: 0;
+        color: var(--primary);
+        font-size: 13px;
+        text-shadow: 0 0 5px var(--primary-glow);
+      }
+    `;
+    document.head.appendChild(styleTag);
+
+    /* 字数统计 */
+    const rawText  = contentEl.textContent || '';
+    const charCount = rawText.replace(/\s/g, '').length;
+    document.getElementById('wordCountText').textContent = `灵力消耗 ${charCount} 字符`;
+
+  }, 100);
+
+  /* ===== 静态散落法阵装饰物 ===== */
+  const decoPool = [
+    {s:'✦', c:['var(--primary)', 'var(--accent)']},
+    {s:'✧', c:['var(--secondary)', 'var(--ink-dim)']},
+    {s:'☾', c:['var(--primary)']},
+    {s:'✨', c:['var(--accent)', 'var(--primary)']},
+    {s:'⋆', c:['var(--ink-dim)']},
+    {s:'🌙', c:['var(--accent)']},
+    {s:'🐈‍⬛', c:['#000']},
+  ];
+
+  const container = document.getElementById('decoContainer');
+  const pageEl    = document.querySelector('.page');
+  const pageH     = pageEl.offsetHeight;
+  const pageW     = pageEl.offsetWidth;
+  const count     = 9 + Math.floor(Math.random() * 6);
+
+  for (let i = 0; i < count; i++) {
+    const d    = document.createElement('span');
+    d.classList.add('deco-item');
+    const pick = decoPool[Math.floor(Math.random() * decoPool.length)];
+    d.textContent = pick.s;
+    const col  = pick.c[Math.floor(Math.random() * pick.c.length)];
+    const size = 12 + Math.floor(Math.random() * 14);
+    const rot  = -35 + Math.floor(Math.random() * 70);
+    const opa  = 0.35 + Math.random() * 0.45;
+
+    d.style.cssText = `
+      font-size:${size}px;
+      color:${col};
+      transform:rotate(${rot}deg);
+      opacity:${opa};
+    `;
+
+    // 边缘散落，不遮正文
+    const edge = Math.floor(Math.random() * 4);
+    let x, y;
+    if (edge === 0) { x = 10 + Math.random()*(pageW-30);  y = 10 + Math.random()*50; }
+    else if(edge===1){ x = 10 + Math.random()*(pageW-30); y = pageH-55 + Math.random()*30; }
+    else if(edge===2){ x = 4  + Math.random()*22;          y = 80 + Math.random()*(pageH-180); }
+    else             { x = pageW-34 + Math.random()*20;    y = 80 + Math.random()*(pageH-180); }
+
+    d.style.left = x + 'px';
+    d.style.top  = y + 'px';
+    container.appendChild(d);
+  }
+});
+</script>
+</body>
+</html>

@@ -575,30 +575,84 @@ class HtmlRenderPlugin(Star):
 
         instruction = f"""
 ## HTML 渲染功能
-你的回复会被自动渲染成精美图片。请使用语义标签标记不同类型的内容，使渲染效果更丰富。
 
-### 语义标签用法
-- <q>对话内容</q> → 对话台词，会显示为引号样式
-- <inner>想法</inner> → 内心活动，会显示为灰色斜体
-- <act>动作</act> → 动作描写，会显示为特殊颜色
-- <scene>场景</scene> → 场景环境描写，会显示为独立段落块
-- <aside>旁白</aside> → 叙述性旁白，会居中显示
+### 背景说明
+你的回复会被渲染系统自动转换成精美图片发送给用户。渲染系统的工作原理是：
+1. 系统解析你回复中的 <render> 标签，提取内容
+2. 将内容嵌入到模板 HTML 的 {{{{content}}}} 占位符位置
+3. 使用无头浏览器将完整 HTML 截图为图片发送
 
-### 模板指定（可选）
-如果你想指定渲染模板，可以用 <render template="模板名"> 包裹内容。
+因此，你需要理解两种内容模式：
+
+**模式A - 模板内容（常用）**：你只需输出纯文本和语义标签，系统自动套用模板样式。适用于日常对话、小说创作、角色扮演等。
+
+**模式B - 自定义HTML内容**：你自己编写完整的 <style> 和 HTML 结构，系统检测到 <style> 标签后会跳过文本处理，直接将你的 HTML 嵌入模板容器中渲染。适用于用户要求制作特殊页面、数据可视化、自定义排版等场景。
+
+**两种模式不冲突**，都需要用 <render> 标签包裹，区别仅在于内容是否自带 <style>。
+
+### 语义标签（模式A使用）
+在模板内容中，使用以下语义标签可以让渲染效果更丰富：
+- <q>对话内容</q> → 对话台词，显示为引号样式
+- <inner>想法</inner> → 内心活动，显示为灰色斜体
+- <act>动作</act> → 动作描写，显示为特殊颜色
+- <scene>场景</scene> → 场景环境描写，显示为独立段落块
+- <aside>旁白</aside> → 叙述性旁白，居中显示
+
+### <render> 标签语法
+```
+<render>内容</render>                          — 使用用户默认模板
+<render template="模板名">内容</render>         — 指定模板
+<render gif>内容</render>                       — 默认模板 + 生成GIF动图
+<render template="模板名" gif>内容</render>      — 指定模板 + 生成GIF动图
+```
 可用模板: {template_list}
-不指定时系统会自动使用用户的默认模板。
+不指定 template 时，系统自动使用用户的默认模板。
 
-### 重要规则
-- 你的所有回复内容都会被渲染成图片，请确保所有内容（包括状态面板、角色信息等）都在回复中完整输出
-- （核心）此项最高优先级，如果使用 <render> 标签，请确保所有内容都在标签内部，不要在标签外遗留内容。如果冲突，遵循该项。结尾必须是 <render>标签，不能是其它东西。
-   即 
+### GIF 动图模式
+当你在 <render> 标签中加入 `gif` 属性时，系统会：
+1. 先生成一张完整的静态截图（PNG）
+2. 自动检测页面中带有 CSS 动画（@keyframes）的区域
+3. 对该动画区域录制多帧并合成为 GIF 动图
+4. 同时发送静态图和 GIF 给用户
+
+使用 GIF 模式时，你必须使用**模式B（自定义HTML）**，在 <style> 中定义 @keyframes 动画。系统会自动检测动画并录制。
+
+典型应用场景：弹幕滚动效果、文字逐帧出现、元素移动/渐变动画等。
+
+GIF 示例结构：
+<render gif>
+<style>
+.container {{ /* 容器样式 */ }}
+.animated-item {{
+    animation: myAnimation 6s linear infinite;
+}}
+@keyframes myAnimation {{
+    0% {{ transform: translateX(0); }}
+    100% {{ transform: translateX(-100%); }}
+}}
+</style>
+<div class="container">
+    <div class="animated-item">滚动的内容</div>
+</div>
+</render>
+
+### 重要规则（按优先级排列）
+1. **（最高优先级）标签完整性**：如果使用 <render> 标签，所有内容必须在标签内部，标签外不要遗留任何内容。回复的结尾必须是 </render> 闭合标签。
+   即：
    <render template="模板名">
-   其它所有内容
-   <render>
-- 如果用户要求你输出其它html内容，不要用 ```html ``` 或```代码块裹你的 HTML 输出。直接写 HTML 标签即可，系统会自动渲染。代码块标记会导致 HTML 被当作纯文本代码展示。
-包
+   所有回复内容都在这里
+   </render>
+
+2. **禁止代码块包裹**：不要用 ```html ``` 或任何 ``` 代码块包裹你的输出。直接写内容即可，代码块标记会导致内容被当作纯文本展示而无法渲染。
+
+3. **内容完整性**：你的所有回复内容都会被渲染成图片，请确保所有内容（包括状态面板、角色信息等）都在回复中完整输出。
+
+4. **模式B注意事项**：当用户要求你输出自定义 HTML（如制作页面、卡片、可视化等），使用模式B——在 <render> 内部直接写 <style> 和 HTML 标签。不要把 HTML 放在 <render> 标签外面。
+
 ### 示例
+
+**模式A示例（模板内容）：**
+<render template="novel">
 <scene>月光如水，洒落在寂静的庭院中。</scene>
 
 林晓站在门口，望着眼前的身影，心跳不由得加速起来。
@@ -612,6 +666,19 @@ class HtmlRenderPlugin(Star):
 他没有回答，只是静静地看着她。
 
 <aside>命运的齿轮，从这一刻开始转动。</aside>
+</render>
+
+**模式B示例（自定义HTML）：**
+<render>
+<style>
+.my-card {{ background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }}
+.my-card h2 {{ color: #333; margin-bottom: 12px; }}
+</style>
+<div class="my-card">
+    <h2>自定义卡片标题</h2>
+    <p>这里是自定义排版的内容。</p>
+</div>
+</render>
 """
         req.system_prompt += f"\n\n{instruction}"
 
@@ -692,13 +759,25 @@ class HtmlRenderPlugin(Star):
                     except json.JSONDecodeError:
                         history = []
 
+                    # --- 开始替换 ---
                     clean_text = original_text
+                    # 清理 HTML 渲染标签
                     clean_text = re.sub(r'<render[^>]*>', '', clean_text)
                     clean_text = re.sub(r'</render>', '', clean_text)
                     clean_text = re.sub(r'</?ctx>', '', clean_text)
+                    
+                    # 🔴 核心修复：补充清理绘图和思考标签，防止脏数据写回数据库
+                    clean_text = re.sub(r'<pic\s+prompt=".*?">', '', clean_text, flags=re.DOTALL)
+                    clean_text = re.sub(r'<think>.*?</think>', '', clean_text, flags=re.DOTALL)
+                    
                     clean_text = clean_text.strip()
 
-                    history.append({"role": "assistant", "content": clean_text})
+                    # 修复并发重复追加：如果最后一条已经是当前角色的文本，则更新而非盲目堆叠
+                    if history and history[-1].get("role") == "assistant":
+                        history[-1]["content"] = clean_text
+                    else:
+                        history.append({"role": "assistant", "content": clean_text})
+                    # --- 替换结束 ---
 
                     await conv_mgr.update_conversation(
                         unified_msg_origin=unified_msg_origin,

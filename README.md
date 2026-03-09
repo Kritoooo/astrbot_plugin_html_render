@@ -124,9 +124,9 @@ enable\_markdown: true        # 启用 Markdown 渲染
 
 auto\_dialogue\_detection: true      # 自动检测对话内容
 
-dialogue\_quote\_pattern: '\[""「」『』]'  # 对话引号匹配规则
+dialogue\_quote\_pattern: '["''「」『』“”‘’]'  # 对话引号匹配规则（中英文单双引号）
 
-dialogue\_quote\_threshold: 2        # 触发对话模板的引号对数
+dialogue\_quote\_threshold: 1        # 触发对话模板的引号对数
 
 
 
@@ -134,19 +134,27 @@ dialogue\_quote\_threshold: 2        # 触发对话模板的引号对数
 
 enable\_auto\_detect: true           # 自动检测 HTML 标签并渲染
 
-auto\_render\_all: false             # 是否渲染所有 AI 回复
+auto\_render\_all: true              # 是否渲染所有 AI 回复
 
 auto\_render\_min\_length: 20         # 自动渲染的最小文本长度
 
 auto\_render\_template: "novel"      # 自动渲染使用的模板
 
+preserve\_text\_for\_context: true    # 发送图片时保留文本摘要，避免上下文丢失
+
 
 
 \# 合并渲染配置
 
-auto\_merge\_renders: false          # 多个 render 标签是否合并为一张图
+auto\_merge\_renders: true           # 检测到 <render> 标签时自动合并整段内容
 
 merged\_template: "novel"           # 合并渲染使用的模板
+
+
+
+\# 背景图片配置
+
+background\_image: ""               # 相对插件目录的背景图路径，如 images/bg.jpg
 
 ```
 

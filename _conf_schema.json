@@ -65,6 +65,12 @@
         "default": true,
         "hint": "自动将 Markdown 格式转换为 HTML 样式"
     },
+    "enable_math": {
+        "type": "bool",
+        "description": "鍚敤 LaTeX 鏁板鍏紡娓叉煋",
+        "default": true,
+        "hint": "鏀寔 $...$銆?$$...$$銆?\\\\(...\\\\) 鍜?\\\\[...\\\\] 绛夋暟瀛﹀叕寮?"
+    },
     "auto_render_all": {
         "type": "bool",
         "description": "自动渲染所有 LLM 回复",

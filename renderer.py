@@ -4,10 +4,53 @@
 
 import asyncio
 import io
+import json
 import os
-from typing import Optional
+from typing import Dict, Optional
 
 from astrbot.api import logger
+
+# ==================== 本地字体映射 ====================
+
+_PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
+_FONT_MANIFEST: Dict[str, str] = {}  # URL -> 本地绝对路径
+_FONT_MANIFEST_LOADED = False
+
+
+def _load_font_manifest():
+    """加载字体清单（URL -> 本地文件路径映射）"""
+    global _FONT_MANIFEST, _FONT_MANIFEST_LOADED
+    if _FONT_MANIFEST_LOADED:
+        return
+
+    manifest_path = os.path.join(_PLUGIN_DIR, "fonts", "manifest.json")
+    if os.path.exists(manifest_path):
+        try:
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+            # 转换为绝对路径
+            for url, rel_path in raw.items():
+                abs_path = os.path.join(_PLUGIN_DIR, rel_path)
+                if os.path.exists(abs_path):
+                    _FONT_MANIFEST[url] = abs_path
+            logger.info(f"[HTML渲染] 已加载 {len(_FONT_MANIFEST)} 个本地字体映射")
+        except Exception as e:
+            logger.warning(f"[HTML渲染] 加载字体清单失败: {e}")
+    else:
+        logger.debug("[HTML渲染] 未找到字体清单 fonts/manifest.json，将使用网络字体")
+
+    _FONT_MANIFEST_LOADED = True
+
+
+def _get_font_mime(path: str) -> str:
+    """根据文件扩展名返回 MIME 类型"""
+    ext = os.path.splitext(path)[1].lower()
+    return {
+        ".woff2": "font/woff2",
+        ".woff": "font/woff",
+        ".ttf": "font/ttf",
+        ".otf": "font/otf",
+    }.get(ext, "application/octet-stream")
 
 # GIF 合成支持
 try:
@@ -25,6 +68,7 @@ except ImportError:
 _playwright_instance = None
 _browser_instance = None
 _browser_lock = asyncio.Lock()
+_CAPTURE_BOTTOM_PADDING = 24
 
 
 async def init_browser():
@@ -72,6 +116,88 @@ async def _get_browser():
 
 
 # ==================== 动画区域检测 ====================
+
+async def _measure_capture_height(page) -> int:
+    """Measure a conservative capture height so the last line is not clipped."""
+    height = await page.evaluate(
+        f"""() => {{
+            const docEl = document.documentElement;
+            const body = document.body;
+            const heights = [
+                docEl ? docEl.scrollHeight : 0,
+                docEl ? docEl.offsetHeight : 0,
+                docEl ? docEl.clientHeight : 0,
+                body ? body.scrollHeight : 0,
+                body ? body.offsetHeight : 0,
+                body ? body.clientHeight : 0,
+            ];
+
+            let maxBottom = 0;
+            for (const el of document.querySelectorAll('*')) {{
+                const rect = el.getBoundingClientRect();
+                if (rect.width <= 0 || rect.height <= 0) continue;
+                const bottom = rect.bottom + window.scrollY;
+                if (bottom > maxBottom) {{
+                    maxBottom = bottom;
+                }}
+            }}
+
+            return Math.max(...heights, Math.ceil(maxBottom + {_CAPTURE_BOTTOM_PADDING}));
+        }}"""
+    )
+    return max(int(height), 200)
+
+
+async def _stabilize_layout(page, rounds: int = 3) -> int:
+    """
+    Wait for fonts/layout to settle and return a capture height.
+    Re-checking a few times avoids late bottom reflow.
+    """
+    stable_height = 200
+
+    for _ in range(rounds):
+        await page.evaluate(
+            """() => {
+                const mathScript = document.getElementById('astrbot-mathjax-script');
+                if (!mathScript || window.__ASTR_MATH_READY__) {
+                    return Promise.resolve();
+                }
+                return new Promise(resolve => {
+                    const started = Date.now();
+                    const tick = () => {
+                        if (window.__ASTR_MATH_READY__ || Date.now() - started > 15000) {
+                            resolve();
+                            return;
+                        }
+                        setTimeout(tick, 50);
+                    };
+                    tick();
+                });
+            }"""
+        )
+        await page.evaluate(
+            """() => {
+                if (!document.fonts || !document.fonts.ready) {
+                    return Promise.resolve();
+                }
+                return document.fonts.ready.catch(() => {});
+            }"""
+        )
+        await page.evaluate(
+            "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+        )
+        stable_height = await _measure_capture_height(page)
+        await asyncio.sleep(0.05)
+
+    return stable_height
+
+
+async def _prepare_page_for_capture(page, width: int) -> int:
+    """Resize the viewport to the measured content height, then verify once more."""
+    full_height = await _stabilize_layout(page)
+    await page.set_viewport_size({"width": width, "height": full_height})
+    return await _stabilize_layout(page)
+
 
 async def _detect_animated_region(
     page,
@@ -261,18 +387,55 @@ async def html_to_image_playwright(
         )
         page = await context.new_page()
 
+        # ===== 字体路由映射：将 Google Fonts 请求重定向到本地文件 =====
+        _load_font_manifest()
+
+        async def _handle_font_route(route):
+            """拦截字体请求，优先使用本地文件"""
+            url = route.request.url
+            local_path = _FONT_MANIFEST.get(url)
+
+            if local_path and os.path.exists(local_path):
+                # 本地字体存在，直接返回
+                try:
+                    with open(local_path, "rb") as f:
+                        body = f.read()
+                    await route.fulfill(
+                        status=200,
+                        content_type=_get_font_mime(local_path),
+                        body=body,
+                    )
+                    return
+                except Exception as e:
+                    logger.warning(f"[HTML渲染] 读取本地字体失败 {local_path}: {e}")
+
+            # 无本地映射或读取失败，阻断请求（避免网络延迟）
+            await route.abort()
+
+        # 拦截 Google Fonts 字体文件请求
+        await page.route("**://fonts.gstatic.com/**", _handle_font_route)
+        # 拦截 Google Fonts CSS 请求（如果模板仍有外部 <link>）
+        await page.route("**://fonts.googleapis.com/**", lambda route: route.abort())
+
         _t_page = _time.perf_counter()
 
         # domcontentloaded 足够：纯本地 HTML 无外部资源需要等待
         await page.set_content(html_content, wait_until="domcontentloaded")
+
         # 等待一帧让 CSS 动画和布局稳定
-        await page.evaluate("() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")
+        full_height = await _prepare_page_for_capture(page, width)
 
         _t_content = _time.perf_counter()
         logger.debug(f"[性能] 页面创建: {_t_page - _t_start:.3f}s, 内容加载: {_t_content - _t_page:.3f}s")
 
         if not is_gif:
-            await page.screenshot(path=output_image_path, full_page=True)
+            # 使用 JPEG 格式：体积远小于 PNG，截图速度更快
+            await page.screenshot(
+                path=output_image_path,
+                full_page=True,
+                type="jpeg",
+                quality=92,
+            )
             _t_end = _time.perf_counter()
             logger.info(f"[性能] 静态渲染总耗时: {_t_end - _t_start:.3f}s")
         else:
@@ -281,10 +444,6 @@ async def html_to_image_playwright(
                 await page.screenshot(path=output_image_path, full_page=True)
             else:
                 # 展开视口到完整内容高度
-                content_h = await page.evaluate("document.body.scrollHeight")
-                full_height = max(content_h, 200)
-                await page.set_viewport_size({"width": width, "height": full_height})
-                await page.evaluate("() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")
 
                 # 1. 先截完整静态图
                 await page.screenshot(path=output_image_path, full_page=True)
@@ -401,7 +560,7 @@ async def _fallback_render(
             )
             page = await context.new_page()
             await page.set_content(html_content, wait_until="domcontentloaded")
-            await page.evaluate("() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")
+            await _prepare_page_for_capture(page, width)
             await page.screenshot(path=output_image_path, full_page=True)
             await browser.close()
             logger.info("[HTML渲染] 回退模式渲染完成（仅静态图）")

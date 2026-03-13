@@ -1,6 +1,7 @@
 # text_processing.py
 # 文本检测、Markdown 渲染、对话格式化、换行处理
 
+import html as html_lib
 import re
 from typing import List, Optional, Tuple
 
@@ -10,6 +11,81 @@ from astrbot.api import logger
 
 _markdown_renderer = None
 MARKDOWN_AVAILABLE = False
+_CODE_TOKEN_PREFIX = "ASTRCODETOKEN"
+_INLINE_MATH_TOKEN_PREFIX = "ASTRINLINEMATHTOKEN"
+_FENCED_CODE_PATTERN = re.compile(r"```[\s\S]*?```")
+_INLINE_CODE_PATTERN = re.compile(r"`[^`\n]+`")
+_DISPLAY_MATH_PATTERNS = [
+    re.compile(r"(?<!\\)\$\$[\s\S]+?(?<!\\)\$\$", re.DOTALL),
+    re.compile(r"\\\[[\s\S]+?\\\]", re.DOTALL),
+    re.compile(r"\\begin\{([a-zA-Z*]+)\}[\s\S]+?\\end\{\1\}", re.DOTALL),
+]
+_INLINE_MATH_PATTERNS = [
+    re.compile(r"(?<!\\)\$(?!\$)(.+?)(?<!\\)\$(?!\$)"),
+    re.compile(r"\\\(.+?\\\)"),
+]
+
+
+def _make_placeholder(prefix: str, index: int) -> str:
+    return f"{prefix}{index}END"
+
+
+def _protect_segments(text: str, patterns: List[re.Pattern], prefix: str) -> Tuple[str, List[str]]:
+    segments: List[str] = []
+
+    def _replace(match: re.Match) -> str:
+        segments.append(match.group(0))
+        return _make_placeholder(prefix, len(segments) - 1)
+
+    for pattern in patterns:
+        text = pattern.sub(_replace, text)
+
+    return text, segments
+
+
+def _restore_segments(text: str, segments: List[str], prefix: str) -> str:
+    for idx, segment in enumerate(segments):
+        text = text.replace(_make_placeholder(prefix, idx), segment)
+    return text
+
+
+def _escape_math_fragment(fragment: str) -> str:
+    return html_lib.escape(fragment, quote=False)
+
+
+def _prepare_math_for_markdown(text: str) -> Tuple[str, List[str]]:
+    """
+    Protect code first, then keep LaTeX intact across Markdown rendering.
+    Display math becomes raw HTML blocks before Markdown parsing;
+    inline math is restored after Markdown so it can live inside emphasis, links, etc.
+    """
+    text, code_segments = _protect_segments(
+        text, [_FENCED_CODE_PATTERN, _INLINE_CODE_PATTERN], _CODE_TOKEN_PREFIX
+    )
+
+    for pattern in _DISPLAY_MATH_PATTERNS:
+        text = pattern.sub(
+            lambda m: (
+                "\n"
+                f'<div class="astr-math-block">{_escape_math_fragment(m.group(0))}</div>'
+                "\n"
+            ),
+            text,
+        )
+
+    inline_math_segments: List[str] = []
+
+    def _replace_inline_math(match: re.Match) -> str:
+        inline_math_segments.append(
+            f'<span class="astr-math-inline">{_escape_math_fragment(match.group(0))}</span>'
+        )
+        return _make_placeholder(_INLINE_MATH_TOKEN_PREFIX, len(inline_math_segments) - 1)
+
+    for pattern in _INLINE_MATH_PATTERNS:
+        text = pattern.sub(_replace_inline_math, text)
+
+    text = _restore_segments(text, code_segments, _CODE_TOKEN_PREFIX)
+    return text, inline_math_segments
 
 try:
     import mistune
@@ -18,11 +94,13 @@ try:
         # mistune 2.x / 3.x
         try:
             _markdown_renderer = mistune.create_markdown(
-                escape=False, plugins=["table", "strikethrough"]
+                escape=False, hard_wrap=True, plugins=["table", "strikethrough"]
             )
         except (TypeError, KeyError):
             try:
-                _markdown_renderer = mistune.create_markdown(escape=False)
+                _markdown_renderer = mistune.create_markdown(
+                    escape=False, hard_wrap=True
+                )
             except TypeError:
                 _markdown_renderer = mistune.create_markdown()
                 logger.warning("HTML渲染插件: 当前 mistune 版本可能不保留内联 HTML")
@@ -92,6 +170,20 @@ def detect_dialogue(
     """检测是否是对话内容（包含多个引号对）"""
     quotes = re.findall(quote_pattern, text)
     return len(quotes) >= quote_threshold * 2
+
+
+def contains_math(text: str) -> bool:
+    """Detect common LaTeX/math delimiters outside code blocks."""
+    if not text:
+        return False
+
+    protected_text, _ = _protect_segments(
+        text, [_FENCED_CODE_PATTERN, _INLINE_CODE_PATTERN], _CODE_TOKEN_PREFIX
+    )
+    return any(
+        pattern.search(protected_text)
+        for pattern in (_DISPLAY_MATH_PATTERNS + _INLINE_MATH_PATTERNS)
+    )
 
 
 # ==================== 换行与格式处理 ====================
@@ -201,7 +293,9 @@ def markdown_to_html(text: str) -> str:
         return preserve_newlines(text)
 
     try:
-        html = _markdown_renderer(text)
+        prepared_text, inline_math_segments = _prepare_math_for_markdown(text)
+        html = _markdown_renderer(prepared_text)
+        html = _restore_segments(html, inline_math_segments, _INLINE_MATH_TOKEN_PREFIX)
         logger.debug(
             f"[Markdown] 渲染成功，输入长度: {len(text)}, 输出长度: {len(html)}"
         )

@@ -24,6 +24,7 @@ from astrbot.core.star.star_tools import StarTools
 
 from renderer import html_to_image_playwright, init_browser, close_browser
 from template_manager import TemplateManager
+import text_processing as _text_processing
 from text_processing import (
     detect_render_tag,
     detect_html_tags,
@@ -33,6 +34,24 @@ from text_processing import (
     markdown_to_html,
     format_dialogue,
 )
+
+
+def _contains_math(content: str) -> bool:
+    """Backward-compatible math detection so old cached modules won't break startup."""
+    detector = getattr(_text_processing, "contains_math", None)
+    if callable(detector):
+        return detector(content)
+
+    if not content:
+        return False
+
+    return bool(
+        re.search(r"(?<!\\)\$(?!\$).+?(?<!\\)\$(?!\$)", content, re.DOTALL)
+        or re.search(r"(?<!\\)\$\$[\s\S]+?(?<!\\)\$\$", content, re.DOTALL)
+        or re.search(r"\\\(.+?\\\)", content, re.DOTALL)
+        or re.search(r"\\\[[\s\S]+?\\\]", content, re.DOTALL)
+        or re.search(r"\\begin\{([a-zA-Z*]+)\}[\s\S]+?\\end\{\1\}", content, re.DOTALL)
+    )
 
 
 @register(
@@ -60,6 +79,9 @@ class HtmlRenderPlugin(Star):
         self.gif_fps = config.get("gif_fps", 15)
 # 背景图缓存（None = 未加载，"" = 无背景图，非空 = data URL）
         self._bg_data_url: Optional[str] = None
+        self._horror_template_pattern = re.compile(
+            r"(恐怖|惊悚|诡异|阴森|噩梦|鬼|亡灵|血|病栋|午夜|深夜|低语|尖叫|尸|诅咒|怪谈)"
+        )
 
     # ==================== 生命周期 ====================
 
@@ -129,6 +151,74 @@ class HtmlRenderPlugin(Star):
                 self._bg_data_url = ""
 
             return self._bg_data_url
+
+    def _inject_math_assets(self, html_content: str) -> str:
+            """为包含数学公式的页面注入 MathJax 资源。"""
+            if 'id="astrbot-mathjax-script"' in html_content:
+                return html_content
+
+            math_assets = """
+<style>
+.astr-math-inline,
+.astr-math-block {
+  max-width: 100%;
+}
+.astr-math-block {
+  display: block;
+  margin: 0.9em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-align: center;
+}
+mjx-container,
+mjx-container * {
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+}
+mjx-container[jax="SVG"] {
+  max-width: 100%;
+}
+.astr-math-block mjx-container[jax="SVG"] {
+  display: inline-block !important;
+  margin: 0 auto !important;
+}
+</style>
+<script>
+window.__ASTR_MATH_READY__ = false;
+window.MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
+    displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
+    processEscapes: true,
+    processEnvironments: true,
+    packages: {'[+]': ['ams', 'noerrors', 'noundefined']}
+  },
+  svg: {
+    fontCache: 'global'
+  },
+  options: {
+    skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+  },
+  startup: {
+    pageReady: () => MathJax.startup.defaultPageReady().then(() => {
+      window.__ASTR_MATH_READY__ = true;
+    })
+  }
+};
+</script>
+<script
+  id="astrbot-mathjax-script"
+  defer
+  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"
+  onerror="window.__ASTR_MATH_READY__ = true;"
+></script>
+"""
+
+            if "</head>" in html_content:
+                return html_content.replace("</head>", math_assets + "</head>", 1)
+
+            return math_assets + html_content
+
     def _cleanup_cache(self, max_age_seconds: int = 300):
         """清理缓存目录中的过期文件"""
         import time
@@ -180,6 +270,9 @@ class HtmlRenderPlugin(Star):
             if user_tpl in available:
                 return user_tpl
 
+        if "猩红噩梦" in available and self._horror_template_pattern.search(content):
+            return "猩红噩梦"
+
         if self.config.get("auto_dialogue_detection", True):
             quote_pat = self.config.get("dialogue_quote_pattern", r'[""「」『』]')
             quote_thr = self.config.get("dialogue_quote_threshold", 2)
@@ -213,6 +306,7 @@ class HtmlRenderPlugin(Star):
         else:
             if self.config.get("enable_markdown", True):
                 content = markdown_to_html(content)
+                return template.replace("{{content}}", content)
             else:
                 content = preserve_newlines(content)
 
@@ -234,6 +328,8 @@ class HtmlRenderPlugin(Star):
             # 检测内容是否自带 <style> 标签，若有则为完整 HTML，跳过文本处理
             has_own_style = bool(re.search(r'<style\b', content, re.IGNORECASE))
             full_html = self._apply_template(content, template_name, is_raw_html=has_own_style)
+            if self.config.get("enable_math", True) and _contains_math(content):
+                full_html = self._inject_math_assets(full_html)
             # 注入自定义背景图（转为 base64 内嵌，避免 Playwright 沙箱限制）
             bg_data_url = self._get_bg_data_url()
             if bg_data_url:
@@ -252,9 +348,9 @@ class HtmlRenderPlugin(Star):
                     full_html = full_html.replace('</head>', bg_style + '</head>', 1)
                 else:
                     full_html = bg_style + full_html
-            # GIF 模式始终用 .png 作为主输出（静态图），GIF 另存
+            # GIF 模式始终用 .jpg 作为主输出（JPEG体积远小于PNG，渲染更快）
             filename_base = f"render_{uuid.uuid4().hex[:12]}"
-            output_path = os.path.join(self.IMAGE_CACHE_DIR, f"{filename_base}.png")
+            output_path = os.path.join(self.IMAGE_CACHE_DIR, f"{filename_base}.jpg")
 
             width = self.config.get("render_width", 600)
             if is_gif:
@@ -539,6 +635,40 @@ class HtmlRenderPlugin(Star):
             import traceback
             logger.error(traceback.format_exc())
             yield event.plain_result(f"❌ 探针失败: {e}")
+    @filter.command("预览模板", aliases=["previewtpl", "tplpreview"])
+    async def cmd_preview_template(self, event: AstrMessageEvent):
+        full_msg = event.message_str.strip()
+        full_msg = re.sub(r'\[At:\d+\]\s*', '', full_msg).strip()
+        parts = full_msg.split(None, 2)
+        arg = parts[1].strip() if len(parts) > 1 else ""
+        text = parts[2].strip() if len(parts) > 2 else ""
+
+        if not arg:
+            yield event.plain_result("📖 用法: /预览模板 <模板名或ID> [文本]\n示例: /预览模板 novel 晚风穿过旧街，灯火一盏盏亮起来。")
+            return
+
+        self.template_mgr.update_template_id_map()
+        template_name = None
+        try:
+            tid = int(arg)
+            template_name = self.template_mgr.template_id_map.get(tid)
+        except ValueError:
+            pass
+        if not template_name and arg in self.template_mgr.get_available_templates():
+            template_name = arg
+        if not template_name:
+            yield event.plain_result(f"❌ 未找到模板: {arg}")
+            return
+
+        user_id = self._get_user_id(event)
+        if not text:
+            text = TemplateManager.get_default_test_content(template_name)
+        image = await self._render_content(text, template_name, user_id, False)
+        if image:
+            yield event.chain_result([Plain(f"🖼️ 模板预览: {template_name}"), image])
+        else:
+            yield event.plain_result("❌ 模板预览失败，请检查日志")
+
     @filter.command("查看", aliases=["templates"])
     async def cmd_list_templates(self, event: AstrMessageEvent):
         available = self.template_mgr.get_available_templates()
@@ -559,8 +689,9 @@ class HtmlRenderPlugin(Star):
         lines.append("")
         lines.append("━━━━━━━━━━━━━━━━━━")
         lines.append("使用方法:")
-        lines.append("  /切换 <ID或名称>  切换默认模板")
-        lines.append("  /测试 <文本>      测试渲染效果")
+        lines.append("  /切换 <ID或名称>      切换默认模板")
+        lines.append("  /测试 <文本>          测试渲染效果")
+        lines.append("  /预览模板 <ID或名称> [文本]  临时预览指定模板")
 
         yield event.plain_result("\n".join(lines))
 
@@ -721,8 +852,19 @@ GIF 示例结构：
             return
 
         original_text = event.get_extra("html_render_original_text")
+
+        # 回退机制：当其他插件（如主动消息插件）绕过标准 LLM 链路时，
+        # on_llm_response 不会被触发，html_render_original_text 不会被设置。
+        # 此时从 chain 中的 Plain 组件提取文本作为渲染源。
         if not original_text:
-            return
+            plain_texts = []
+            for item in result.chain:
+                if isinstance(item, Plain) and item.text and item.text.strip():
+                    plain_texts.append(item.text)
+            if not plain_texts:
+                return
+            original_text = "\n".join(plain_texts)
+            logger.debug("[HTML渲染] 未找到 original_text extra，从消息链中提取文本进行渲染")
 
         user_id = self._get_user_id(event)
 

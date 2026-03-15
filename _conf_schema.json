@@ -42,11 +42,11 @@
         "hint": "内容中包含多少对引号时判定为对话内容"
     },
     "dialogue_quote_pattern": {
-    "type": "string",
-    "description": "对话引号匹配模式",
-    "default": "[\"''「」『』“”‘’]",
-    "hint": "包含中英文单双引号及直角引号的正则表达式"
-},
+        "type": "string",
+        "description": "对话引号匹配模式",
+        "default": "[\"''「」『』“”‘’]",
+        "hint": "包含中英文单双引号及直角引号的正则表达式"
+    },
     "auto_merge_renders": {
         "type": "bool",
         "description": "自动合并整段内容",
@@ -67,9 +67,9 @@
     },
     "enable_math": {
         "type": "bool",
-        "description": "鍚敤 LaTeX 鏁板鍏紡娓叉煋",
+        "description": "启用 LaTeX 数学公式渲染",
         "default": true,
-        "hint": "鏀寔 $...$銆?$$...$$銆?\\\\(...\\\\) 鍜?\\\\[...\\\\] 绛夋暟瀛﹀叕寮?"
+        "hint": "支持 $...$ $$...$$ \\\\(...\\\\) 和 \\\\[...\\\\] 等数学公式"
     },
     "auto_render_all": {
         "type": "bool",
@@ -107,7 +107,7 @@
         "default": 15,
         "hint": "每秒帧数，越高越流畅但文件越大。建议 10-20，推荐 15"
     },
-"gif_scale": {
+    "gif_scale": {
         "type": "int",
         "description": "GIF 渲染缩放倍数",
         "default": 2,

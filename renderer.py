@@ -69,6 +69,9 @@ _playwright_instance = None
 _browser_instance = None
 _browser_lock = asyncio.Lock()
 _CAPTURE_BOTTOM_PADDING = 24
+_MATHJAX_TIMEOUT_MS = 15000
+_ANIM_CLIP_PAD_CSS = 10
+_ANIM_CLIP_PAD_PIXEL = 30
 
 
 async def init_browser():
@@ -165,7 +168,9 @@ async def _stabilize_layout(page, rounds: int = 3) -> int:
                 return new Promise(resolve => {
                     const started = Date.now();
                     const tick = () => {
-                        if (window.__ASTR_MATH_READY__ || Date.now() - started > 15000) {
+                        if (window.__ASTR_MATH_READY__ || Date.now() - started > """
+            + str(_MATHJAX_TIMEOUT_MS)
+            + """) {
                             resolve();
                             return;
                         }
@@ -247,12 +252,11 @@ async def _detect_animated_region(
         }""")
 
         if clip_from_js:
-            pad = 10
             clip = {
-                "x": max(0, clip_from_js["x"] - pad),
-                "y": max(0, clip_from_js["y"] - pad),
-                "width": min(clip_from_js["width"] + pad * 2, viewport_width),
-                "height": min(clip_from_js["height"] + pad * 2, viewport_height),
+                "x": max(0, clip_from_js["x"] - _ANIM_CLIP_PAD_CSS),
+                "y": max(0, clip_from_js["y"] - _ANIM_CLIP_PAD_CSS),
+                "width": min(clip_from_js["width"] + _ANIM_CLIP_PAD_CSS * 2, viewport_width),
+                "height": min(clip_from_js["height"] + _ANIM_CLIP_PAD_CSS * 2, viewport_height),
             }
 
             page_area = viewport_width * viewport_height
@@ -312,7 +316,7 @@ async def _detect_animated_region(
                     logger.info(f"[GIF] 像素变化区域占页面 {ratio*100:.0f}%，不裁切")
                     return None
 
-                pad = int(30 * scale)
+                pad = int(_ANIM_CLIP_PAD_PIXEL * scale)
                 clip = {
                     "x": max(0, bbox[0] - pad) / scale,
                     "y": max(0, bbox[1] - pad) / scale,
@@ -549,6 +553,8 @@ async def _fallback_render(
     fps: int,
 ) -> bool:
     """回退到独立浏览器模式（浏览器池不可用时）"""
+    browser = None
+    context = None
     try:
         from playwright.async_api import async_playwright
 
@@ -562,9 +568,19 @@ async def _fallback_render(
             await page.set_content(html_content, wait_until="domcontentloaded")
             await _prepare_page_for_capture(page, width)
             await page.screenshot(path=output_image_path, full_page=True)
-            await browser.close()
             logger.info("[HTML渲染] 回退模式渲染完成（仅静态图）")
             return True
     except Exception as e:
         logger.error(f"[HTML渲染] 回退渲染也失败: {e}")
         return False
+    finally:
+        if context is not None:
+            try:
+                await context.close()
+            except Exception:
+                pass
+        if browser is not None:
+            try:
+                await browser.close()
+            except Exception:
+                pass

@@ -15,6 +15,9 @@ class TemplateManager:
         self.TEMPLATE_DIR = template_dir
         self.templates: Dict[str, str] = {}
         self.template_id_map: Dict[int, str] = {}
+        # mtime-based caches
+        self._template_cache: Dict[str, tuple] = {}  # name -> (mtime, content)
+        self._available_cache: Optional[tuple] = None  # (dir_mtime, list)
 
     # ==================== 加载与管理 ====================
 
@@ -58,28 +61,40 @@ class TemplateManager:
             logger.warning(f"无法写入默认模板文件: {e}")
 
     def get_available_templates(self) -> List[str]:
-        """获取可用模板列表（实时扫描目录）"""
-        templates = set()
-
+        """获取可用模板列表（基于目录 mtime 缓存）"""
         if os.path.exists(self.TEMPLATE_DIR):
+            dir_mtime = os.path.getmtime(self.TEMPLATE_DIR)
+            if self._available_cache and self._available_cache[0] == dir_mtime:
+                return self._available_cache[1]
+
+            templates = set()
             for filename in os.listdir(self.TEMPLATE_DIR):
                 if filename.endswith(".html"):
                     templates.add(filename[:-5])
+            templates.update(["card", "dialogue", "novel"])
+            result = sorted(templates)
+            self._available_cache = (dir_mtime, result)
+            return result
 
         # 始终包含内置模板
-        templates.update(["card", "dialogue", "novel"])
-        return sorted(templates)
+        return sorted(["card", "dialogue", "novel"])
 
     def load_template(self, template_name: str) -> str:
-        """从硬盘实时加载模板（每次调用都读取文件），自动剥离内置提示词注释"""
+        """加载模板（基于文件 mtime 缓存，仅文件修改后才重新读取）"""
         filepath = os.path.join(self.TEMPLATE_DIR, f"{template_name}.html")
 
-        if os.path.exists(filepath):    
+        if os.path.exists(filepath):
             try:
+                file_mtime = os.path.getmtime(filepath)
+                cached = self._template_cache.get(template_name)
+                if cached and cached[0] == file_mtime:
+                    return cached[1]
+
                 with open(filepath, "r", encoding="utf-8") as f:
                     content = f.read()
                     # 剥离内置提示词注释，避免渲染到图片中
                     content = self.strip_builtin_prompt(content)
+                    self._template_cache[template_name] = (file_mtime, content)
                     logger.debug(f"[HTML渲染] 已从硬盘加载模板: {template_name}")
                     return content
             except Exception as e:

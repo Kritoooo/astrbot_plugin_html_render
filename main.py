@@ -24,8 +24,8 @@ from astrbot.core.star.star_tools import StarTools
 
 from renderer import html_to_image_playwright, init_browser, close_browser
 from template_manager import TemplateManager
-import text_processing as _text_processing
 from text_processing import (
+    contains_math,
     detect_render_tag,
     detect_html_tags,
     detect_dialogue,
@@ -36,29 +36,14 @@ from text_processing import (
 )
 
 
-def _contains_math(content: str) -> bool:
-    """Backward-compatible math detection so old cached modules won't break startup."""
-    detector = getattr(_text_processing, "contains_math", None)
-    if callable(detector):
-        return detector(content)
-
-    if not content:
-        return False
-
-    return bool(
-        re.search(r"(?<!\\)\$(?!\$).+?(?<!\\)\$(?!\$)", content, re.DOTALL)
-        or re.search(r"(?<!\\)\$\$[\s\S]+?(?<!\\)\$\$", content, re.DOTALL)
-        or re.search(r"\\\(.+?\\\)", content, re.DOTALL)
-        or re.search(r"\\\[[\s\S]+?\\\]", content, re.DOTALL)
-        or re.search(r"\\begin\{([a-zA-Z*]+)\}[\s\S]+?\\end\{\1\}", content, re.DOTALL)
-    )
+_CACHE_MAX_AGE = 300
 
 
 @register(
     "astrbot_plugin_html_render",
     "lumingya",
     "将 AI 返回的 HTML/CSS 内容渲染成精美图片发送",
-    "1.0.1",
+    "1.4.0",
 )
 class HtmlRenderPlugin(Star):
     def __init__(self, context: Context, config: dict):
@@ -85,10 +70,31 @@ class HtmlRenderPlugin(Star):
 
     # ==================== 生命周期 ====================
 
+    def _prefs_path(self) -> str:
+        return os.path.join(self.DATA_DIR, "user_template_prefs.json")
+
+    def _load_user_prefs(self):
+        path = self._prefs_path()
+        if os.path.isfile(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    self.user_default_template = json.load(f)
+                logger.info(f"[HTML渲染] 已加载 {len(self.user_default_template)} 条用户模板偏好")
+            except Exception as e:
+                logger.warning(f"[HTML渲染] 加载用户模板偏好失败: {e}")
+
+    def _save_user_prefs(self):
+        try:
+            with open(self._prefs_path(), "w", encoding="utf-8") as f:
+                json.dump(self.user_default_template, f, ensure_ascii=False)
+        except Exception as e:
+            logger.warning(f"[HTML渲染] 保存用户模板偏好失败: {e}")
+
     async def initialize(self):
         try:
             os.makedirs(self.IMAGE_CACHE_DIR, exist_ok=True)
             self._cleanup_cache()
+            self._load_user_prefs()
             await self.template_mgr.load_templates()
             self.template_mgr.update_template_id_map()
             await self._ensure_playwright()
@@ -219,7 +225,7 @@ window.MathJax = {
 
             return math_assets + html_content
 
-    def _cleanup_cache(self, max_age_seconds: int = 300):
+    def _cleanup_cache(self, max_age_seconds: int = _CACHE_MAX_AGE):
         """清理缓存目录中的过期文件"""
         import time
         now = time.time()
@@ -238,7 +244,7 @@ window.MathJax = {
     def _schedule_delete(self, *paths):
         """延迟删除文件（给消息发送留足时间，多图模式下图片生成耗时较长）"""
         async def _delete():
-            await asyncio.sleep(300)
+            await asyncio.sleep(_CACHE_MAX_AGE)
             for p in paths:
                 try:
                     if os.path.exists(p):
@@ -328,7 +334,7 @@ window.MathJax = {
             # 检测内容是否自带 <style> 标签，若有则为完整 HTML，跳过文本处理
             has_own_style = bool(re.search(r'<style\b', content, re.IGNORECASE))
             full_html = self._apply_template(content, template_name, is_raw_html=has_own_style)
-            if self.config.get("enable_math", True) and _contains_math(content):
+            if self.config.get("enable_math", True) and contains_math(content):
                 full_html = self._inject_math_assets(full_html)
             # 注入自定义背景图（转为 base64 内嵌，避免 Playwright 沙箱限制）
             bg_data_url = self._get_bg_data_url()
@@ -544,6 +550,7 @@ window.MathJax = {
             return
 
         self.user_default_template[user_id] = template_name
+        self._save_user_prefs()
         logger.info(f"[HTML渲染] 用户 {user_id} 切换默认模板: {current} -> {template_name}")
         yield event.plain_result(f"✅ 已切换默认模板为: {template_name}")
     @filter.command("探针gif", aliases=["probegif"])
@@ -813,29 +820,22 @@ GIF 示例结构：
 """
         req.system_prompt += f"\n\n{instruction}"
 
-        # 注入所有模板的内置提示词（方案C：全部注入 + 标注用户偏好）
-        all_prompts = self.template_mgr.extract_all_builtin_prompts()
-        if all_prompts:
-            user_id = self._get_user_id(event)
-            current_template = self.user_default_template.get(
-                user_id, self.config.get("default_template", "card")
+        # 只注入当前用户模板的内置提示词，减少 token 消耗
+        user_id = self._get_user_id(event)
+        current_template = self.user_default_template.get(
+            user_id, self.config.get("default_template", "card")
+        )
+        current_prompt = self.template_mgr.extract_builtin_prompt(current_template)
+        if current_prompt:
+            builtin_block = (
+                f"## 模板专属指令\n"
+                f"当前用户偏好的模板是: **{current_template}**\n"
+                f"如果用户没有特别指定模板，请优先使用 {current_template} 模板。\n\n"
+                f"### 模板「{current_template}」的专属指令\n"
+                f"{current_prompt}\n"
             )
-
-            prompt_sections = []
-            prompt_sections.append("## 模板专属指令")
-            prompt_sections.append(f"当前用户偏好的模板是: **{current_template}**")
-            prompt_sections.append(f"如果用户没有特别指定模板，请优先使用 {current_template} 模板。")
-            prompt_sections.append("")
-
-            for tpl_name, tpl_prompt in all_prompts.items():
-                is_current = " （当前用户偏好）" if tpl_name == current_template else ""
-                prompt_sections.append(f"### 模板「{tpl_name}」的专属指令{is_current}")
-                prompt_sections.append(tpl_prompt)
-                prompt_sections.append("")
-
-            builtin_block = "\n".join(prompt_sections)
             req.system_prompt += f"\n\n{builtin_block}"
-            logger.info(f"[HTML渲染] 已注入 {len(all_prompts)} 个模板的内置提示词，当前偏好: {current_template}")
+            logger.info(f"[HTML渲染] 已注入模板「{current_template}」的内置提示词")
 
     @filter.on_llm_response(priority=40)
     async def on_llm_response(self, event: AstrMessageEvent, resp):

@@ -6,6 +6,7 @@ import asyncio
 import io
 import json
 import os
+import time
 from typing import Dict, Optional
 
 from astrbot.api import logger
@@ -371,8 +372,7 @@ async def html_to_image_playwright(
     复用浏览器实例，每次只创建新页面。
     GIF 模式使用时间轴跳帧：暂停动画 → seek到每帧时间点 → 截图，零等待。
     """
-    import time as _time
-    _t_start = _time.perf_counter()
+    _t_start = time.perf_counter()
 
     page = None
     context = None
@@ -421,7 +421,7 @@ async def html_to_image_playwright(
         # 拦截 Google Fonts CSS 请求（如果模板仍有外部 <link>）
         await page.route("**://fonts.googleapis.com/**", lambda route: route.abort())
 
-        _t_page = _time.perf_counter()
+        _t_page = time.perf_counter()
 
         # domcontentloaded 足够：纯本地 HTML 无外部资源需要等待
         await page.set_content(html_content, wait_until="domcontentloaded")
@@ -429,7 +429,7 @@ async def html_to_image_playwright(
         # 等待一帧让 CSS 动画和布局稳定
         full_height = await _prepare_page_for_capture(page, width)
 
-        _t_content = _time.perf_counter()
+        _t_content = time.perf_counter()
         logger.debug(f"[性能] 页面创建: {_t_page - _t_start:.3f}s, 内容加载: {_t_content - _t_page:.3f}s")
 
         if not is_gif:
@@ -440,7 +440,7 @@ async def html_to_image_playwright(
                 type="jpeg",
                 quality=92,
             )
-            _t_end = _time.perf_counter()
+            _t_end = time.perf_counter()
             logger.info(f"[性能] 静态渲染总耗时: {_t_end - _t_start:.3f}s")
         else:
             if not GIF_AVAILABLE:
@@ -477,7 +477,7 @@ async def html_to_image_playwright(
                     await page.evaluate("document.getAnimations().forEach(a => a.pause())")
 
                     frames = []
-                    record_start = _time.perf_counter()
+                    record_start = time.perf_counter()
 
                     for i in range(frame_count):
                         target_time = i * frame_interval_ms
@@ -496,7 +496,7 @@ async def html_to_image_playwright(
                     # 恢复播放
                     await page.evaluate("document.getAnimations().forEach(a => a.play())")
 
-                    record_time = _time.perf_counter() - record_start
+                    record_time = time.perf_counter() - record_start
                     logger.info(f"[GIF] 跳帧完成：{len(frames)}帧，耗时{record_time:.1f}s")
 
                     out_dir = os.path.dirname(output_image_path)
@@ -504,7 +504,7 @@ async def html_to_image_playwright(
                         os.makedirs(out_dir, exist_ok=True)
 
                     if frames:
-                        compose_start = _time.perf_counter()
+                        compose_start = time.perf_counter()
                         frame_display_ms = int(frame_interval_ms)
                         frames[0].save(
                             gif_path,
@@ -514,12 +514,12 @@ async def html_to_image_playwright(
                             loop=0,
                             optimize=True,
                         )
-                        compose_time = _time.perf_counter() - compose_start
+                        compose_time = time.perf_counter() - compose_start
                         logger.info(f"[GIF] 合成完成，耗时{compose_time:.1f}s")
                 else:
                     logger.info("[GIF] 未检测到动画区域，仅输出静态图")
 
-            _t_end = _time.perf_counter()
+            _t_end = time.perf_counter()
             logger.info(f"[性能] GIF渲染总耗时: {_t_end - _t_start:.3f}s")
 
         return True

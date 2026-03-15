@@ -113,7 +113,6 @@ class TemplateManager:
 
         logger.warning(f"[HTML渲染] 未知模板 {template_name}，回退到 card")
         return self.get_default_card_template()
-    # ==================== 内置提示词 ====================
 
     # ==================== 内置提示词 ====================
 
@@ -153,20 +152,6 @@ class TemplateManager:
 
         return None
 
-    def extract_all_builtin_prompts(self) -> Dict[str, str]:
-        """
-        扫描所有模板，提取所有包含内置提示词的模板。
-
-        :return: {模板名: 提示词文本}，只包含有内置提示词的模板
-        """
-        result: Dict[str, str] = {}
-        for template_name in self.get_available_templates():
-            prompt = self.extract_builtin_prompt(template_name)
-            if prompt:
-                result[template_name] = prompt
-        if result:
-            logger.info(f"[HTML渲染] 共 {len(result)} 个模板包含内置提示词: {list(result.keys())}")
-        return result
     def update_template_id_map(self):
         """更新模板 ID 映射（按名称排序，实时扫描）"""
         available = self.get_available_templates()

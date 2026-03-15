@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+import time
 import uuid
 import base64
 from typing import Dict, List, Optional
@@ -27,7 +28,6 @@ from template_manager import TemplateManager
 from text_processing import (
     contains_math,
     detect_render_tag,
-    detect_html_tags,
     detect_dialogue,
     preserve_newlines,
     nl2br,
@@ -227,7 +227,6 @@ window.MathJax = {
 
     def _cleanup_cache(self, max_age_seconds: int = _CACHE_MAX_AGE):
         """清理缓存目录中的过期文件"""
-        import time
         now = time.time()
         count = 0
         try:
@@ -318,6 +317,23 @@ window.MathJax = {
 
         content = nl2br(content)
         return template.replace("{{content}}", content)
+
+    @staticmethod
+    def _clean_tags(text: str) -> str:
+        """清理 <render>/<pic>/<think>/<ctx> 标签"""
+        text = re.sub(r'<render[^>]*>', '', text)
+        text = re.sub(r'</render>', '', text)
+        text = re.sub(r'<pic\s+prompt=".*?">', '', text, flags=re.DOTALL)
+        text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+        text = re.sub(r'</?ctx>', '', text)
+        return text.strip()
+
+    @staticmethod
+    def _parse_command_args(message: str) -> str:
+        """从命令消息中移除 At 标记并返回命令之后的参数文本"""
+        msg = re.sub(r'\[At:\d+\]\s*', '', message.strip()).strip()
+        parts = msg.split(None, 1)
+        return parts[1].strip() if len(parts) > 1 else ""
 
     # ==================== 渲染核心 ====================
 
@@ -474,19 +490,11 @@ window.MathJax = {
 
         return components
 
-    def _detect_should_render(self, text: str, has_render_tag: bool) -> bool:
-        if has_render_tag:
-            return False
-        return detect_html_tags(text)
-
     # ==================== 命令 ====================
 
     @filter.command("测试", aliases=["test"])
     async def cmd_test_render(self, event: AstrMessageEvent):
-        full_msg = event.message_str.strip()
-        full_msg = re.sub(r'\[At:\d+\]\s*', '', full_msg).strip()
-        parts = full_msg.split(None, 1)
-        text = parts[1].strip() if len(parts) > 1 else ""
+        text = self._parse_command_args(event.message_str)
 
         user_id = self._get_user_id(event)
 
@@ -514,10 +522,7 @@ window.MathJax = {
 
     @filter.command("切换", aliases=["switch"])
     async def cmd_switch_template(self, event: AstrMessageEvent):
-        full_msg = event.message_str.strip()
-        full_msg = re.sub(r'\[At:\d+\]\s*', '', full_msg).strip()
-        parts = full_msg.split(None, 1)
-        arg = parts[1].strip() if len(parts) > 1 else ""
+        arg = self._parse_command_args(event.message_str)
 
         user_id = self._get_user_id(event)
         current = self.user_default_template.get(user_id, self.config.get("default_template", "card"))
@@ -644,11 +649,10 @@ window.MathJax = {
             yield event.plain_result(f"❌ 探针失败: {e}")
     @filter.command("预览模板", aliases=["previewtpl", "tplpreview"])
     async def cmd_preview_template(self, event: AstrMessageEvent):
-        full_msg = event.message_str.strip()
-        full_msg = re.sub(r'\[At:\d+\]\s*', '', full_msg).strip()
-        parts = full_msg.split(None, 2)
-        arg = parts[1].strip() if len(parts) > 1 else ""
-        text = parts[2].strip() if len(parts) > 2 else ""
+        rest = self._parse_command_args(event.message_str)
+        parts = rest.split(None, 1)
+        arg = parts[0] if parts else ""
+        text = parts[1].strip() if len(parts) > 1 else ""
 
         if not arg:
             yield event.plain_result("📖 用法: /预览模板 <模板名或ID> [文本]\n示例: /预览模板 novel 晚风穿过旧街，灯火一盏盏亮起来。")
@@ -872,14 +876,7 @@ GIF 示例结构：
         new_chain: List = []
         for item in result.chain:
             if isinstance(item, Plain):
-                # 清理可能残留的 <pic> 和 <think> 标签
-                text_to_render = re.sub(r'<pic\s+prompt=".*?">', '', item.text, flags=re.DOTALL)
-                text_to_render = re.sub(r'<think>.*?</think>', '', text_to_render, flags=re.DOTALL)
-
-                # 在渲染前剥离 <ctx> 标签（仅移除标签本身，保留内部内容）
-                text_to_render = re.sub(r'</?ctx>', '', text_to_render)
-
-                text_to_render = text_to_render.strip()
+                text_to_render = self._clean_tags(item.text)
                 if text_to_render:
                     # 短回复跳过渲染，直接以纯文本发送
                     min_len = self.config.get("auto_render_min_length", 20)
@@ -907,18 +904,7 @@ GIF 示例结构：
                     except json.JSONDecodeError:
                         history = []
 
-                    # --- 开始替换 ---
-                    clean_text = original_text
-                    # 清理 HTML 渲染标签
-                    clean_text = re.sub(r'<render[^>]*>', '', clean_text)
-                    clean_text = re.sub(r'</render>', '', clean_text)
-                    clean_text = re.sub(r'</?ctx>', '', clean_text)
-                    
-                    # 🔴 核心修复：补充清理绘图和思考标签，防止脏数据写回数据库
-                    clean_text = re.sub(r'<pic\s+prompt=".*?">', '', clean_text, flags=re.DOTALL)
-                    clean_text = re.sub(r'<think>.*?</think>', '', clean_text, flags=re.DOTALL)
-                    
-                    clean_text = clean_text.strip()
+                    clean_text = self._clean_tags(original_text)
 
                     # 修复并发重复追加：如果最后一条已经是当前角色的文本，则更新而非盲目堆叠
                     if history and history[-1].get("role") == "assistant":

@@ -94,7 +94,11 @@ pip install mistune   # Markdown 渲染支持
 
 inject\_prompt: true          # 是否向 AI 注入渲染提示词
 
-default\_template: "card"     # 默认模板：card / dialogue / novel
+default\_template: “card”     # 默认模板：card / dialogue / novel
+
+enable\_markdown: true        # 启用 Markdown 渲染
+
+enable\_math: true            # 启用数学公式渲染（MathJax）
 
 
 
@@ -104,6 +108,8 @@ render\_width: 600            # 图片宽度（像素）
 
 render\_scale: 2              # 缩放比例（影响清晰度）
 
+background\_image: “”         # 相对插件目录的背景图路径，如 images/bg.jpg
+
 
 
 \# GIF 配置
@@ -112,49 +118,19 @@ gif\_duration: 3.0            # GIF 动画时长（秒）
 
 gif\_fps: 15                  # GIF 帧率
 
-
-
-\# Markdown 配置
-
-enable\_markdown: true        # 启用 Markdown 渲染
+gif\_scale: 2                 # GIF 缩放比例（默认跟随 render\_scale）
 
 
 
-\# 自动检测配置
+\# 智能检测
 
-auto\_dialogue\_detection: true      # 自动检测对话内容
+auto\_dialogue\_detection: true   # 自动检测对话内容并使用对话模板
 
-dialogue\_quote\_pattern: '["''「」『』“”‘’]'  # 对话引号匹配规则（中英文单双引号）
+auto\_render\_all: false          # 是否渲染所有 AI 回复（无 <render> 标签时）
 
-dialogue\_quote\_threshold: 1        # 触发对话模板的引号对数
+auto\_render\_template: “novel”   # auto\_render\_all 启用时使用的模板
 
-
-
-\# 自动渲染配置
-
-enable\_auto\_detect: true           # 自动检测 HTML 标签并渲染
-
-auto\_render\_all: true              # 是否渲染所有 AI 回复
-
-auto\_render\_min\_length: 20         # 自动渲染的最小文本长度
-
-auto\_render\_template: "novel"      # 自动渲染使用的模板
-
-preserve\_text\_for\_context: true    # 发送图片时保留文本摘要，避免上下文丢失
-
-
-
-\# 合并渲染配置
-
-auto\_merge\_renders: true           # 检测到 <render> 标签时自动合并整段内容
-
-merged\_template: "novel"           # 合并渲染使用的模板
-
-
-
-\# 背景图片配置
-
-background\_image: ""               # 相对插件目录的背景图路径，如 images/bg.jpg
+auto\_render\_min\_length: 20      # 跳过渲染的短回复阈值（字符数）
 
 ```
 

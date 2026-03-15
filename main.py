@@ -881,6 +881,12 @@ GIF 示例结构：
 
                 text_to_render = text_to_render.strip()
                 if text_to_render:
+                    # 短回复跳过渲染，直接以纯文本发送
+                    min_len = self.config.get("auto_render_min_length", 20)
+                    has_render = bool(detect_render_tag(text_to_render))
+                    if not has_render and len(text_to_render) < min_len:
+                        new_chain.append(Plain(text_to_render))
+                        continue
                     comps = await self._process_text(text_to_render, user_id)
                     new_chain.extend(comps)
             else:

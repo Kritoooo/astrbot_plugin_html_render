@@ -280,8 +280,8 @@ window.MathJax = {
             return "猩红噩梦"
 
         if self.config.get("auto_dialogue_detection", True):
-            quote_pat = self.config.get("dialogue_quote_pattern", r'[""「」『』]')
-            quote_thr = self.config.get("dialogue_quote_threshold", 2)
+            quote_pat = r'[""「」『』]'
+            quote_thr = 2
             if detect_dialogue(content, quote_pat, quote_thr) and "dialogue" in available:
                 return "dialogue"
 

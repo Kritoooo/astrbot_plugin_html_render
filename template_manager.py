@@ -183,8 +183,8 @@ class TemplateManager:
             border-radius: 16px;
             padding: 24px 28px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-            line-height: 1.8;
-            font-size: 16px;
+            line-height: 1.9;
+            font-size: 18px;
             color: #333;
             min-width: 300px;
             white-space: pre-wrap;
@@ -192,7 +192,7 @@ class TemplateManager:
         .card * {
             white-space: pre-wrap;
         }
-        .card p { margin-bottom: 12px; }
+        .card p { margin-bottom: 14px; }
         .card p:last-child { margin-bottom: 0; }
         .card h1, .card h2, .card h3, .card h4, .card h5, .card h6 {
             margin-top: 16px;
@@ -200,9 +200,9 @@ class TemplateManager:
             font-weight: 600;
             color: #2c3e50;
         }
-        .card h1 { font-size: 24px; }
-        .card h2 { font-size: 22px; }
-        .card h3 { font-size: 20px; }
+        .card h1 { font-size: 26px; }
+        .card h2 { font-size: 24px; }
+        .card h3 { font-size: 22px; }
         .card ul, .card ol {
             margin-left: 24px;
             margin-bottom: 12px;
@@ -220,7 +220,7 @@ class TemplateManager:
             padding: 2px 6px;
             border-radius: 4px;
             font-family: Consolas, "Courier New", monospace;
-            font-size: 14px;
+            font-size: 15px;
         }
         .card pre {
             background: #f4f4f4;
@@ -262,7 +262,7 @@ class TemplateManager:
             display: inline-block;
             background: linear-gradient(180deg, #f0f4f8 0%, #e8ecf1 100%);
             min-height: 100px;
-            min-width: 400px;
+            min-width: 350px;
         }
         .dialogue-container {
             max-width: 100%;
@@ -273,11 +273,11 @@ class TemplateManager:
         .bubble {
             background: linear-gradient(135deg, #a8d8ea 0%, #89c4e1 100%);
             border-radius: 20px 20px 20px 4px;
-            padding: 16px 20px;
+            padding: 18px 22px;
             margin-bottom: 12px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            line-height: 1.7;
-            font-size: 16px;
+            line-height: 1.85;
+            font-size: 18px;
             color: #2c3e50;
             position: relative;
             align-self: flex-start;
@@ -296,7 +296,7 @@ class TemplateManager:
             margin: 8px 0 16px 0;
             border-radius: 4px;
             line-height: 2;
-            font-size: 15px;
+            font-size: 17px;
             color: #555;
             font-style: italic;
             text-align: justify;
@@ -341,7 +341,7 @@ class TemplateManager:
                 inset 0 0 80px rgba(0,0,0,0.03),
                 0 4px 20px rgba(0,0,0,0.08);
             position: relative;
-            min-width: 350px;
+            min-width: 300px;
         }
         .page::before {
             content: "";
@@ -353,7 +353,7 @@ class TemplateManager:
             background: linear-gradient(to bottom, #d4c4a8, #c9b896, #d4c4a8);
         }
         .content {
-            font-size: 17px;
+            font-size: 18px;
             line-height: 2;
             color: #3a3a3a;
             text-align: justify;
@@ -370,9 +370,9 @@ class TemplateManager:
             margin-bottom: 0.5em;
             font-weight: 600;
         }
-        .content h1 { font-size: 22px; }
-        .content h2 { font-size: 20px; }
-        .content h3 { font-size: 18px; }
+        .content h1 { font-size: 24px; }
+        .content h2 { font-size: 22px; }
+        .content h3 { font-size: 20px; }
         .content ul, .content ol {
             text-indent: 0;
             margin-left: 2em;
@@ -392,7 +392,7 @@ class TemplateManager:
             padding: 2px 6px;
             border-radius: 3px;
             font-family: Consolas, monospace;
-            font-size: 15px;
+            font-size: 16px;
         }
         .content pre {
             background: #f0ebe0;

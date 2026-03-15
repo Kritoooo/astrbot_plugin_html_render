@@ -104,7 +104,7 @@ enable\_math: true            # 启用数学公式渲染（MathJax）
 
 \# 渲染参数
 
-render\_width: 600            # 图片宽度（像素）
+render\_width: 520            # 图片宽度（像素）
 
 render\_scale: 2              # 缩放比例（影响清晰度）
 

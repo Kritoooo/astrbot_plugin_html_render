@@ -374,7 +374,7 @@ window.MathJax = {
             filename_base = f"render_{uuid.uuid4().hex[:12]}"
             output_path = os.path.join(self.IMAGE_CACHE_DIR, f"{filename_base}.jpg")
 
-            width = self.config.get("render_width", 600)
+            width = self.config.get("render_width", 520)
             if is_gif:
                 scale = self.config.get("gif_scale", self.config.get("render_scale", 2))
             else:
